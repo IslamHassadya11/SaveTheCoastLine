@@ -9,7 +9,9 @@ For every cell we store
   F = "fill level": the lowest sea level at which Mediterranean water can reach the cell
       (computed with morphological reconstruction, so inland basins below sea level that are
        not connected to the sea - e.g. the Jordan valley - stay dry).
+  R = distance from today's shoreline (m), used by the illustration (erosion) mode
 A cell is flooded at sea level h when F < h, with depth h - E.
+Also writes coastline.json: today's shoreline as lines.
 
 Usage: python3 scripts/build_dem.py <dir-with-DeltaDTM-tifs>
 """
@@ -17,6 +19,7 @@ import sys, os, json, gzip
 import numpy as np, rasterio
 from scipy import ndimage
 from skimage.morphology import reconstruction
+from skimage import measure
 
 SRC = sys.argv[1]
 OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'data', 'flood')
@@ -61,12 +64,23 @@ seed = np.where(sea, 0.0, 100.0).astype(np.float64)
 mask = np.where(sea, 0.0, elev).astype(np.float64)
 cross = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], bool)
 fill = reconstruction(seed, mask, method='erosion', footprint=cross).astype(np.float32)
+# visual clean-up: a 3x3 median removes single-cell specks and pin-holes caused by
+# elevation noise, so flooded areas read as continuous water
+fill_s = ndimage.median_filter(fill, size=3)
+fill = np.where(sea, 0.0, np.maximum(fill_s, np.minimum(fill, 0.05))).astype(np.float32)
+
+# distance of each land cell from the open sea, in metres (anisotropic cell size)
+lat_mid = (LAT_N + LAT_S) / 2
+dy = RES * 110540; dx = RES * 111320 * np.cos(np.radians(lat_mid))
+dist = ndimage.distance_transform_edt(~sea, sampling=(dy, dx)).astype(np.float32)
 
 def enc(v):  # decimetres with -1 m offset, 0..254
     return np.clip(np.round((v + 1.0) * 10), 0, 254).astype(np.uint8)
 
 E = enc(elev); D = np.clip(np.round((fill - elev) * 10), 0, 254).astype(np.uint8)
 E[sea] = 255; D[sea] = 0
+R = np.clip(np.round(dist / 20), 0, 255).astype(np.uint8)   # 20 m units, 255 = 5.1 km+
+R[sea] = 0
 
 chunks = []; blobs = []; off = 0
 for ci in range(0, rows, CHUNK):
@@ -74,20 +88,29 @@ for ci in range(0, rows, CHUNK):
         f = fill[ci:ci + CHUNK, cj:cj + CHUNK]; s = sea[ci:ci + CHUNK, cj:cj + CHUNK]
         if not ((~s) & (f < FMAX)).any(): continue
         h, w = f.shape
-        e = np.full((CHUNK, CHUNK), 255, np.uint8); d = np.zeros((CHUNK, CHUNK), np.uint8)
-        e[:h, :w] = E[ci:ci + h, cj:cj + w]; d[:h, :w] = D[ci:ci + h, cj:cj + w]
-        blobs += [e.tobytes(), d.tobytes()]
+        e = np.full((CHUNK, CHUNK), 255, np.uint8); d = np.zeros((CHUNK, CHUNK), np.uint8); r = np.zeros((CHUNK, CHUNK), np.uint8)
+        e[:h, :w] = E[ci:ci + h, cj:cj + w]; d[:h, :w] = D[ci:ci + h, cj:cj + w]; r[:h, :w] = R[ci:ci + h, cj:cj + w]
+        blobs += [e.tobytes(), d.tobytes(), r.tobytes()]
         chunks.append(dict(row=ci, col=cj, n=LAT_N - ci * RES, s=LAT_N - (ci + CHUNK) * RES,
                            w=LON_W + cj * RES, e=LON_W + (cj + CHUNK) * RES, off=off))
-        off += 2 * CHUNK * CHUNK
+        off += 3 * CHUNK * CHUNK
 
 raw = b''.join(blobs)
 with gzip.open(os.path.join(OUT, 'grid.bin.gz'), 'wb', compresslevel=9) as g:
     g.write(raw)
 json.dump(dict(source='DeltaDTM v1.1 (Pronk et al. 2024, CC-BY 4.0), 1 arc-second, EGM2008',
-               res=RES, chunk=CHUNK, encoding='E: (m+1)*10 uint8, 255=sea; D: (fill-E)*10 uint8',
+               res=RES, chunk=CHUNK, encoding='E: (m+1)*10 uint8, 255=sea; D: (fill-E)*10 uint8; R: distance from shore / 20 m uint8',
                bounds=[LON_W, LAT_S, LON_E, LAT_N], chunks=chunks),
           open(os.path.join(OUT, 'index.json'), 'w'))
+# today's shoreline as simplified lines (for the dashed "coast today" line)
+lines = []
+for cnt in measure.find_contours(sea.astype(np.float32), 0.5):
+    if len(cnt) < 60: continue
+    cnt = measure.approximate_polygon(cnt, tolerance=0.6)
+    lines.append([[round(LON_W + (c + 0.5) * RES, 5), round(LAT_N - (r + 0.5) * RES, 5)] for r, c in cnt])
+json.dump(dict(type='FeatureCollection', features=[dict(type='Feature', properties={}, geometry=dict(type='LineString', coordinates=l)) for l in lines]),
+          open(os.path.join(OUT, '..', 'coastline.json'), 'w'), separators=(',', ':'))
+print('coastline lines', len(lines), 'points', sum(map(len, lines)))
 print('chunks', len(chunks), 'raw MB', len(raw) / 1e6,
       'gz MB', os.path.getsize(os.path.join(OUT, 'grid.bin.gz')) / 1e6)
 # quick sanity: flooded land area at a few levels

@@ -1,8 +1,8 @@
 // What the sea reaches at a given level, from the pre-computed exposure histograms.
 import type { Exposure } from './data';
 
-type Kind = 'buildings' | 'land_m2' | 'road_m' | 'rail_m' | 'building_m2';
-const KINDS: Kind[] = ['buildings', 'land_m2', 'road_m', 'rail_m', 'building_m2'];
+type Kind = 'buildings' | 'land_m2' | 'road_m' | 'rail_m' | 'building_m2' | 'buildings_i' | 'road_m_i' | 'land_m2_i';
+const KINDS: Kind[] = ['buildings', 'land_m2', 'road_m', 'rail_m', 'building_m2', 'buildings_i', 'road_m_i', 'land_m2_i'];
 const prefix: Record<string, Record<Kind, Float64Array>> = {};
 let bin = 0.1;
 
@@ -27,8 +27,10 @@ export function initStats(ex: Exposure) {
   }
 }
 
-/** Amount reached at sea level `level` (m). site = id or '__all'. Linear between bins. */
-export function reached(site: string, kind: Kind, level: number): number {
+/** Amount reached at sea level `level` (m). site = id or '__all'. Linear between bins.
+ *  In illustration mode the erosion variants (…_i) are used for buildings, land and roads. */
+export function reached(site: string, kind: Kind, level: number, illus = false): number {
+  if (illus && (kind === 'buildings' || kind === 'land_m2' || kind === 'road_m')) kind = (kind + '_i') as Kind;
   const p = prefix[site]?.[kind]; if (!p || level <= 0) return 0;
   const x = level / bin, i = Math.floor(x);
   if (i >= p.length - 1) return p[p.length - 1];

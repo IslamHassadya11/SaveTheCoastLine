@@ -22,12 +22,13 @@ export interface State {
   site: string;
   panel: Panel;
   buildings: boolean;
+  style: 'real' | 'illus'; // real elevation flooding, or illustration with shoreline erosion
 }
 
 export const state: State = {
   lang: 'en', driver: 'scenario', scenario: 'ssp245', q: 2, year: 2100, budget: 2300, longTerm: false,
   manual: 1, surge: 'calm', compare: false, view: '2d', basemap: 'map', site: 'haifa_bay', panel: null,
-  buildings: true,
+  buildings: true, style: 'real',
 };
 
 type Fn = (s: State, changed: Set<keyof State>) => void;
@@ -71,7 +72,7 @@ export function compareLevels(): { low: number; high: number } {
 }
 
 // ---- URL hash ----
-const KEYS: (keyof State)[] = ['lang', 'driver', 'scenario', 'q', 'year', 'budget', 'longTerm', 'manual', 'surge', 'compare', 'view', 'basemap', 'site'];
+const KEYS: (keyof State)[] = ['lang', 'driver', 'scenario', 'q', 'year', 'budget', 'longTerm', 'manual', 'surge', 'compare', 'view', 'basemap', 'site', 'style'];
 function writeHash() {
   const p = new URLSearchParams();
   for (const k of KEYS) p.set(k, String(state[k]));

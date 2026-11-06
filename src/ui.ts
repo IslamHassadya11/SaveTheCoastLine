@@ -23,7 +23,8 @@ export function initUI(s: Site[], c: Climate, g: FloodGrid, hooks: { onPhoto: ()
   renderAll();
   bindGlobal();
   subscribe(onChange);
-  M.onPointInfo((ll) => pointInfo(ll.lng, ll.lat));
+  M.onPointInfo((ll, which) => pointInfo(ll.lng, ll.lat, which));
+  initSwipe();
   onFlightChange(() => renderPlacebar());
 }
 let photoHooks: { onPhoto: () => void; onLeavePhoto: () => void };
@@ -42,7 +43,8 @@ function onChange(s: State, ch: Set<keyof State>) {
     try { localStorage.setItem('rt-lang', s.lang); } catch { /* ignore */ }
     renderAll(); M.applyLanguage(); return;
   }
-  if (ch.has('driver') || ch.has('longTerm') || ch.has('scenario') || ch.has('q') || ch.has('surge') || ch.has('compare')) renderDock();
+  if (ch.has('driver') || ch.has('longTerm') || ch.has('scenario') || ch.has('q') || ch.has('surge') || ch.has('compare') || ch.has('style')) renderDock();
+  if (ch.has('compare')) { M.setCompare(state.compare, $('#map2')); $('#swipe').hidden = !state.compare; }
   if (ch.has('view')) {
     renderTop();
     if (state.view === '3d' && !M.is3D()) {
@@ -53,10 +55,10 @@ function onChange(s: State, ch: Set<keyof State>) {
   }
   if (ch.has('site')) { renderPlacebar(); M.highlightMarker(); M.flyToSite(site()); }
   if (ch.has('panel')) renderDrawer();
-  else if (state.panel && [...ch].some((k) => ['scenario', 'year', 'budget', 'driver', 'q', 'manual', 'surge', 'longTerm', 'compare', 'site'].includes(k))) refreshDrawer();
+  else if (state.panel && [...ch].some((k) => ['scenario', 'year', 'budget', 'driver', 'q', 'manual', 'surge', 'longTerm', 'compare', 'site', 'style'].includes(k))) refreshDrawer();
   if (ch.has('basemap')) M.applyBasemap();
   if (ch.has('buildings')) M.setBuildingsVisible(state.buildings);
-  if (ch.has('compare')) renderLegend();
+  if (ch.has('compare') || ch.has('style') || ch.has('basemap')) renderLegend();
   if (!floodQueued) {
     floodQueued = true;
     requestAnimationFrame(() => { floodQueued = false; M.updateFlood(); M.refreshPopup(); levelListeners.forEach((f) => f()); });
@@ -143,7 +145,12 @@ function renderDock() {
     </div>
     <div class="dock-body">
       ${yearRow}
-      <div class="drivers seg">${(['scenario', 'budget', 'manual'] as const).map((k) => `<button data-driver="${k}" class="${d === k ? 'on' : ''}">${t(('driver_' + k) as Key)}</button>`).join('')}</div>
+      <div class="row-split">
+        <div class="drivers seg">${(['scenario', 'budget', 'manual'] as const).map((k) => `<button data-driver="${k}" class="${d === k ? 'on' : ''}">${t(('driver_' + k) as Key)}</button>`).join('')}</div>
+        <div class="seg small style-seg" title="${t('style_note')}">${(['real', 'illus'] as const).map((k) => `<button data-style="${k}" class="${state.style === k ? 'on' : ''}">${t(('style_' + k) as Key)}</button>`).join('')}</div>
+        ${d !== 'manual' ? `<button class="cmp-btn ${state.compare ? 'on' : ''}" data-act="compare">${icon('swap', 16)}<span>${t('compare')}</span></button>` : ''}
+      </div>
+      ${state.style === 'illus' ? `<p class="style-note">${t('style_illus_note')}</p>` : ''}
       <div class="driver-body">${body}</div>
       <details class="opts" ${optsOpen ? 'open' : ''}>
         <summary><span>${t('more_opts')}</span><span class="opt-sum">${optSummary()}</span>${icon('chev_d', 16)}</summary>
@@ -153,7 +160,6 @@ function renderDock() {
           ${d !== 'manual' ? `<div class="opt"><label>${t('horizon')}</label><div class="seg small"><button data-long="0" class="${!state.longTerm ? 'on' : ''}">${t('h_year')}</button><button data-long="1" class="${state.longTerm ? 'on' : ''}">${t('h_long')}</button></div></div>` : ''}
           ${d !== 'manual' ? `<div class="opt"><label>${t('range')}</label><div class="seg small">${QUANTILES.map((_, i) => `<button data-q="${i}" class="${state.q === i ? 'on' : ''}">${t(('q' + i) as Key)}</button>`).join('')}</div></div>` : ''}
         </div>
-        <label class="toggle"><input type="checkbox" id="compare" ${state.compare ? 'checked' : ''}><span class="sw"></span>${t('compare')}</label>
       </details>
     </div>`;
   $('#dock').querySelector('details')!.addEventListener('toggle', (e) => { optsOpen = (e.target as HTMLDetailsElement).open; });
@@ -165,7 +171,6 @@ function optSummary() {
   const parts = [t(('surge_' + state.surge) as Key)];
   if (state.driver !== 'manual') parts.push(state.longTerm ? t('h_long') : t('h_year'));
   if (state.driver !== 'manual' && state.q !== 2) parts.push(t(('q' + state.q) as Key));
-  if (state.compare) parts.push(t('compare'));
   return parts.join(' · ');
 }
 
@@ -175,9 +180,13 @@ function renderRail() {
 }
 
 function renderLegend() {
+  const sat = state.basemap === 'sat';
   $('#legend').innerHTML = `
-    <div class="lg-row"><span>${t('legend_depth')}</span><div class="lg-ramp"></div><span class="lg-ends"><b>0</b><b>3 m+</b></span></div>
-    ${state.compare ? `<div class="lg-row"><i class="lg-sw saved"></i><span>${t('legend_saved')}</span></div>` : ''}`;
+    <div class="lg-row"><i class="lg-sw sea ${sat ? 'sat' : ''}"></i><span>${t('legend_new_sea')}</span></div>
+    <div class="lg-row"><i class="lg-sw foam"></i><span>${t('legend_edge')}</span></div>
+    <div class="lg-row"><i class="lg-line ${sat ? 'sat' : ''}"></i><span>${t('legend_today')}</span></div>
+    <div class="lg-row"><i class="lg-sw bld"></i><span>${t('legend_bld')}</span></div>
+    ${state.style === 'illus' ? `<div class="lg-note">${t('legend_illus')}</div>` : ''}`;
 }
 
 /** Text that changes continuously with sliders (no re-render). */
@@ -185,25 +194,34 @@ function updateLive() {
   const L = level(), base = baseLevel(), sg = surgeM();
   const cmp = state.compare ? compareLevels() : null;
   const lv = $('#lvl'); if (!lv) return;
-  lv.textContent = meters(cmp ? cmp.low : L);
-  if (cmp) lv.innerHTML = `${meters(cmp.low)} <span class="vs">→ ${meters(cmp.high)}</span>`;
+  lv.textContent = meters(L);
   const sub = [t('vs_base')];
   if (sg) sub.push(t('incl_storm', { m: meters(sg, 2) }));
   if (state.driver === 'scenario' && !state.longTerm && !cmp) sub.unshift(`${SCENARIOS.find((s) => s.id === state.scenario)!.short} · ${state.year}`);
   if (state.longTerm) sub.unshift(t('in_2000y'));
   $('#lvlsub').textContent = sub.join(' · ');
   void base;
-  const show = cmp ? cmp.low : L;
-  const land = reached('__all', 'land_m2', show) / 1e6, bld = reached('__all', 'buildings', show), road = reached('__all', 'road_m', show) / 1000;
-  const extra = cmp ? {
-    land: reached('__all', 'land_m2', cmp.high) / 1e6 - land, bld: reached('__all', 'buildings', cmp.high) - bld, road: reached('__all', 'road_m', cmp.high) / 1000 - road,
-  } : null;
+  const il = state.style === 'illus';
   const km2 = state.lang === 'he' ? 'קמ״ר' : 'km²', km = state.lang === 'he' ? 'ק״מ' : 'km';
-  $('#stats').innerHTML = `
-    <div class="stat"><div class="v">${fmt(land, land < 10 ? 1 : 0)} <small>${km2}</small></div><div class="l">${t('land')}</div>${extra ? `<div class="x">+${fmt(extra.land, 1)}</div>` : ''}</div>
-    <div class="stat"><div class="v">${fmt(Math.round(bld))}</div><div class="l">${t('buildings')}</div>${extra ? `<div class="x">+${fmt(Math.round(extra.bld))}</div>` : ''}</div>
-    <div class="stat"><div class="v">${fmt(road, road < 10 ? 1 : 0)} <small>${km}</small></div><div class="l">${t('roads')}</div>${extra ? `<div class="x">+${fmt(extra.road, 0)}</div>` : ''}</div>
-    <div class="scope">${t('whole_coast')}</div>`;
+  const amounts = (l: number) => ({ land: reached('__all', 'land_m2', l, il) / 1e6, bld: reached('__all', 'buildings', l, il), road: reached('__all', 'road_m', l, il) / 1000 });
+  if (cmp) {
+    const a = amounts(cmp.low), b = amounts(cmp.high);
+    const saved = { land: b.land - a.land, bld: b.bld - a.bld, road: b.road - a.road };
+    $('#stats').innerHTML = `
+      <div class="stat saved"><div class="v">${fmt(saved.land, saved.land < 10 ? 1 : 0)} <small>${km2}</small></div><div class="l">${t('saved_land')}</div></div>
+      <div class="stat saved"><div class="v">${fmt(Math.round(saved.bld))}</div><div class="l">${t('saved_bld')}</div></div>
+      <div class="stat saved"><div class="v">${fmt(saved.road, saved.road < 10 ? 1 : 0)} <small>${km}</small></div><div class="l">${t('saved_road')}</div></div>
+      <div class="scope">${t('saved_scope')}</div>`;
+    $('#lvl').innerHTML = `<span class="cmp-l">${meters(cmp.low)}</span> <span class="vs">${t('vs')} ${meters(cmp.high)}</span>`;
+    updateSwipeLabels(cmp);
+  } else {
+    const a = amounts(L);
+    $('#stats').innerHTML = `
+      <div class="stat"><div class="v">${fmt(a.land, a.land < 10 ? 1 : 0)} <small>${km2}</small></div><div class="l">${t('land')}</div></div>
+      <div class="stat"><div class="v">${fmt(Math.round(a.bld))}</div><div class="l">${t('buildings')}</div></div>
+      <div class="stat"><div class="v">${fmt(a.road, a.road < 10 ? 1 : 0)} <small>${km}</small></div><div class="l">${t('roads')}</div></div>
+      <div class="scope">${t('whole_coast')}${il ? ' · ' + t('style_illus') : ''}</div>`;
+  }
   const yv = $('#yearv'); if (yv) yv.textContent = String(state.year);
   const yr = $<HTMLInputElement>('#year'); if (yr && Number(yr.value) !== state.year) yr.value = String(state.year);
   if (state.driver === 'budget') {
@@ -272,7 +290,7 @@ function renderPlace(body: HTMLElement) {
   const km = state.lang === 'he' ? 'ק״מ' : 'km';
   const ha = state.lang === 'he' ? 'דונם' : 'ha';
   const landHa = (v: number) => state.lang === 'he' ? v / 1000 : v / 1e4; // dunam or hectare
-  const r = (k: 'buildings' | 'land_m2' | 'road_m', l: number) => reached(s.id, k, l);
+  const r = (k: 'buildings' | 'land_m2' | 'road_m', l: number) => reached(s.id, k, l, state.style === 'illus');
   const rows = [
     { id: 'ssp119' as ScenarioId }, { id: 'ssp245' as ScenarioId }, { id: 'ssp585' as ScenarioId }, { id: 'ssp585_low' as ScenarioId },
   ];
@@ -456,29 +474,63 @@ function niceMax(v: number) { const p = 10 ** Math.floor(Math.log10(v)); const m
 function compact(v: number) { return v >= 1000 ? fmt(v / 1000, v % 1000 ? 1 : 0) + 'k' : fmt(v); }
 
 // ---------------- point info (map click) ----------------
-export function pointInfo(lon: number, lat: number): string {
+export function pointInfo(lon: number, lat: number, which: 'main' | 'other' = 'main'): string {
   const c = grid.sample(lon, lat);
   if (!c) return `<div class="pi"><p>${t('pop_high')}</p></div>`;
   if (c.sea) return `<div class="pi"><p>${t('pop_sea')}</p></div>`;
-  const L = level();
+  const cmp = state.compare ? compareLevels() : null;
+  const L = cmp ? (which === 'main' ? cmp.low : cmp.high) : level();
+  const il = state.style === 'illus';
+  const reach = il ? c.fillIllus : c.fill;
   const basin = c.fill - c.ground > 0.3;
-  const flooded = c.fill < L;
+  const flooded = reach < L;
   const sg = surgeM();
   const first = (id: ScenarioId) => {
-    for (let y = 2020; y <= 2150; y++) if (slrScenario(id, y, state.q) + sg > c.fill) return String(y);
+    for (let y = 2020; y <= 2150; y++) if (slrScenario(id, y, state.q) + sg > reach) return String(y);
     return t('never');
   };
   return `<div class="pi">
+    ${cmp ? `<div class="pi-sub">${which === 'main' ? t('swipe_low') : t('swipe_high')}</div>` : ''}
     <div class="pi-row"><span>${t('pop_ground')}</span><b>${meters(c.ground, 1)}</b></div>
     <div class="pi-row"><span>${t('pop_reach')}</span><b>${meters(Math.max(0, c.fill), 1)}</b></div>
+    ${il ? `<div class="pi-row"><span>${t('pop_erosion')}</span><b>${meters(Math.max(0, c.fillIllus), 1)}</b></div><p class="muted small">${t('pop_dist', { m: fmt(c.dist), r: fmt(c.retreat) })}</p>` : ''}
     ${basin ? `<p class="muted small">${t('pop_basin')}</p>` : ''}
-    <p class="${flooded ? 'pi-wet' : 'pi-dry'}">${flooded ? t('pop_flooded', { d: meters(L - c.ground, 1).replace('+', '') }) : t('pop_dry')}</p>
+    <p class="${flooded ? 'pi-wet' : 'pi-dry'}">${flooded ? (c.fill < L ? t('pop_flooded', { d: meters(L - c.ground, 1).replace('+', '') }) : t('pop_eroded')) : t('pop_dry')}</p>
     <div class="pi-sub">${t('pop_year')}${sg ? ` (${t('incl_storm', { m: meters(sg, 2) })})` : ''}</div>
     ${(['ssp119', 'ssp245', 'ssp585', 'ssp585_low'] as ScenarioId[]).map((id) => {
       const sc = SCENARIOS.find((x) => x.id === id)!;
       return `<div class="pi-row"><span><i class="dotc" style="background:${sc.color}"></i>${sc.short}</span><b>${first(id)}</b></div>`;
     }).join('')}
   </div>`;
+}
+
+// ---------------- swipe comparison ----------------
+function initSwipe() {
+  const sw = $('#swipe'), m2 = $('#map2');
+  let x = window.innerWidth / 2;
+  const place = (nx: number) => {
+    x = Math.max(40, Math.min(window.innerWidth - 40, nx));
+    sw.style.left = x + 'px';
+    m2.style.clipPath = `inset(0 0 0 ${x}px)`;
+  };
+  place(x);
+  const handle = sw.querySelector('.sw-handle') as HTMLElement;
+  handle.addEventListener('pointerdown', (e) => {
+    handle.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => place(ev.clientX);
+    const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); };
+    handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up);
+  });
+  window.addEventListener('resize', () => place(Math.min(x, window.innerWidth - 40)));
+  sw.hidden = !state.compare;
+  if (state.compare) M.setCompare(true, m2);
+}
+function updateSwipeLabels(cmp: { low: number; high: number }) {
+  const lo = $('#swipe .sw-lo'), hi = $('#swipe .sw-hi');
+  if (!lo) return;
+  const when = state.longTerm ? t('h_long') : String(state.year);
+  lo.innerHTML = `<b>${t('swipe_low')}</b><span>${meters(cmp.low)} · ${when}</span>`;
+  hi.innerHTML = `<b>${t('swipe_high')}</b><span>${meters(cmp.high)} · ${when}</span>`;
 }
 
 // ---------------- search ----------------
@@ -526,7 +578,7 @@ function openPlaces() {
   const box = $('#places');
   box.hidden = !box.hidden;
   if (box.hidden) return;
-  box.innerHTML = `<ul>${sites.map((s) => `<li><button data-site="${s.id}" class="${s.id === state.site ? 'on' : ''}"><b>${esc(siteName(s))}</b><span>${esc(siteTag(s))}</span><em>${fmt(Math.round(reached(s.id, 'buildings', Math.max(level(), 0.01))))} ${t('bld_short')}</em></button></li>`).join('')}</ul>`;
+  box.innerHTML = `<ul>${sites.map((s) => `<li><button data-site="${s.id}" class="${s.id === state.site ? 'on' : ''}"><b>${esc(siteName(s))}</b><span>${esc(siteTag(s))}</span><em>${fmt(Math.round(reached(s.id, 'buildings', Math.max(level(), 0.01), state.style === 'illus')))} ${t('bld_short')}</em></button></li>`).join('')}</ul>`;
 }
 
 function openLayers() {
@@ -610,6 +662,7 @@ function bindGlobal() {
       return;
     }
     if (d.panel !== undefined) { const p = (d.panel || null) as Panel; set({ panel: state.panel === p ? null : p }); return; }
+    if (d.style) { set({ style: d.style as State['style'] }); return; }
     if (d.scen) { set({ scenario: d.scen as ScenarioId, driver: 'scenario' }); return; }
     if (d.q) { set({ q: Number(d.q) }); return; }
     if (d.driver) { set({ driver: d.driver as State['driver'], ...(d.driver === 'manual' ? { manual: Math.round(baseLevel() * 20) / 20, longTerm: false } : {}) }); return; }
@@ -647,6 +700,7 @@ function bindGlobal() {
         set({ site: sites[n].id }); break;
       }
       case 'play': togglePlay(); break;
+      case 'compare': set({ compare: !state.compare }); break;
       case 'collapse': dockCollapsed = !dockCollapsed; $('#dock').classList.toggle('collapsed', dockCollapsed); break;
       case 'share': navigator.clipboard?.writeText(location.href).then(() => toast(t('copied'))).catch(() => toast(location.href)); break;
       case 'shot': {
@@ -661,7 +715,6 @@ function bindGlobal() {
     if (el.id === 'year') set({ year: Number(el.value) });
     else if (el.id === 'budget' || el.id === 'budget2') set({ budget: Number(el.value), driver: 'budget' });
     else if (el.id === 'manual') set({ manual: Number(el.value) });
-    else if (el.id === 'compare') set({ compare: el.checked });
     else if (el.id === 'bld') set({ buildings: el.checked });
     else if (el.dataset.a) { (act as any)[el.dataset.a] = Number(el.value); updateAct(); }
     else if (el.id === 'a-people') { act.people = Math.max(1, Number(el.value) || 1); act.who = ''; updateAct(); }

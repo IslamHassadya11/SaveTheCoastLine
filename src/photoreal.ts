@@ -3,7 +3,7 @@
 // rectangles at (sea level + geoid height), so the real 3D city is cut by the water surface.
 import type { FloodGrid } from './flood';
 import { map } from './map';
-import { level } from './state';
+import { level, state } from './state';
 
 const CESIUM = 'https://cdn.jsdelivr.net/npm/cesium@1.145.0/Build/Cesium/';
 declare global { interface Window { Cesium: any; CESIUM_BASE_URL: string } }
@@ -71,7 +71,7 @@ export function updatePhotoreal(force = false) {
   for (const { ent, ch, canvas } of entities) {
     ent.rectangle.height = L + ch.meta.geoid + datum;
     if (changed && gridRef) {
-      gridRef.renderPhoto(ch, L, canvas);
+      gridRef.renderPhoto(ch, { level: L, style: state.style, sat: true }, canvas);
       ent.rectangle.material = new Cesium.ImageMaterialProperty({ image: canvas.toDataURL('image/png'), transparent: true });
     }
   }
