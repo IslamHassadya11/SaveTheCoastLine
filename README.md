@@ -21,6 +21,7 @@ elevation data and real buildings, and see what our own choices change.
 - **What can we do?** calculator: commuting, flights, food and home electricity for me / our seminar / the university / Israel / the world → tonnes CO₂, Arctic sea ice kept, seawater kept out of the ocean, Israeli coast kept dry.
 - **Data panel**: Hadera tide gauge (measured since 1995) joined to IPCC projections; Mauna Loa CO₂.
 - **Present mode**: an 8-step story for the seminar (arrow keys to move).
+- **Classic lab** (`/classic/`): the original Rising Tides page - animated Leaflet flood map, 3D coastal twin, action lab and seminar sites - kept as it was.
 - **English / עברית** with right-to-left layout. Shareable links (the URL keeps the view).
 
 ## Run it

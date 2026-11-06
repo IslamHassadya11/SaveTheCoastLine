@@ -80,6 +80,7 @@ function renderTop() {
       <button class="tbtn" data-act="search" title="${t('search')}">${icon('search')}<span>${t('search')}</span></button>
       <button class="tbtn" data-act="tour" title="${t('tour')}">${icon('plane')}<span>${flightMode() === 'tour' ? t('tour_stop') : t('tour')}</span></button>
       <button class="tbtn" data-act="present" title="${t('present')}">${icon('present')}<span>${t('present')}</span></button>
+      <a class="tbtn" href="./classic/" title="${t('classic_hint')}">${icon('globe')}<span>${t('classic')}</span></a>
       <button class="tbtn icon-only" data-act="layers" title="${t('layers')}">${icon('layers')}</button>
       <button class="tbtn lang" data-act="lang">${t('lang_switch')}</button>
       <button class="tbtn icon-only" data-act="about" title="${t('about')}">${icon('info')}</button>

@@ -94,6 +94,7 @@ const EN = {
   layers: 'Layers', base_map: 'Map', base_sat: 'Satellite', show_buildings: '3D buildings',
   share: 'Copy link', copied: 'Link copied', shot: 'Save image',
   more_opts: 'Storm, horizon & compare',
+  classic: 'Classic lab', classic_hint: 'The original Rising Tides lab: animated flood map, 3D coastal twin and seminar sites',
 };
 
 type Key = keyof typeof EN;
@@ -173,6 +174,7 @@ const HE: Partial<Record<Key, string>> = {
   layers: 'שכבות', base_map: 'מפה', base_sat: 'לוויין', show_buildings: 'מבנים בתלת־ממד',
   share: 'העתקת קישור', copied: 'הקישור הועתק', shot: 'שמירת תמונה',
   more_opts: 'סערה, טווח זמן והשוואה',
+  classic: 'המעבדה הקלאסית', classic_hint: 'המעבדה המקורית: מפת הצפה מונפשת, תאום חוף בתלת־ממד ואתרי הסמינר',
 };
 
 export function t(key: Key, vars?: Record<string, string | number>): string {
