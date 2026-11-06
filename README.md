@@ -1,4 +1,4 @@
-# Rising Tides 🌊
+# Save The Coast Line 🌊
 
 **Sea level rise on Israel's Mediterranean coast - in 2D, 3D and photoreal.**
 Made for our sustainability seminar: pick a future, watch the sea move inland over real
