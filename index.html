@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Rising Tides - Sea level rise on Israel's coast</title>
+  <meta name="description" content="Explore sea level rise along Israel's Mediterranean coast in 2D, 3D and photoreal, driven by IPCC projections, real elevation data and your own emissions choices." />
+  <meta name="theme-color" content="#07111f" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M2 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0'/%3E%3Cpath d='M2 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="map"></div>
+  <div id="photo" hidden></div>
+
+  <header id="top"></header>
+  <div id="placebar"></div>
+  <div id="places" class="pop" hidden></div>
+  <div id="searchbox" class="pop" hidden></div>
+  <div id="layerbox" class="pop" hidden></div>
+
+  <nav id="rail"></nav>
+  <aside id="drawer" hidden></aside>
+  <section id="dock"></section>
+  <div id="legend"></div>
+  <div id="story" hidden></div>
+  <div id="modal" hidden></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <div id="loader"><div class="wave-loader"><i></i><i></i><i></i></div><p>Loading the coast…</p></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
