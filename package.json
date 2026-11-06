@@ -1,9 +1,9 @@
 {
-  "name": "rising-tides",
+  "name": "save-the-coast-line",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Rising Tides - sea level rise on Israel's Mediterranean coast, in 2D, 3D and photoreal.",
+  "description": "Save The Coast Line - sea level rise on Israel's Mediterranean coast, in 2D, 3D and photoreal.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

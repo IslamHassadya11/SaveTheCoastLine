@@ -650,7 +650,7 @@ function bindGlobal() {
       case 'share': navigator.clipboard?.writeText(location.href).then(() => toast(t('copied'))).catch(() => toast(location.href)); break;
       case 'shot': {
         const a = document.createElement('a');
-        a.download = `rising-tides-${state.site}-${state.year}.png`;
+        a.download = `save-the-coast-line-${state.site}-${state.year}.png`;
         a.href = M.map.getCanvas().toDataURL('image/png'); a.click(); break;
       }
     }

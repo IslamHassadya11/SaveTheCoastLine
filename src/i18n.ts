@@ -1,7 +1,7 @@
 import { state } from './state';
 
 const EN = {
-  title: 'Rising Tides',
+  title: 'Save The Coast Line',
   subtitle: "Sea level rise on Israel's coast",
   view_2d: 'Map', view_3d: '3D city', view_photo: 'Photoreal',
   search: 'Search a place', search_ph: 'Is my place safe? Type an address…', search_none: 'No match on the coast',
@@ -99,7 +99,7 @@ const EN = {
 type Key = keyof typeof EN;
 
 const HE: Partial<Record<Key, string>> = {
-  title: 'גאות עולה', subtitle: 'עליית מפלס הים בחופי ישראל',
+  title: 'להציל את קו החוף', subtitle: 'עליית מפלס הים בחופי ישראל',
   view_2d: 'מפה', view_3d: 'עיר בתלת־ממד', view_photo: 'פוטו־ריאליסטי',
   search: 'חיפוש מקום', search_ph: 'האם הבית שלי בטוח? הקלידו כתובת…', search_none: 'לא נמצא מקום על החוף',
   tour: 'טיסה לאורך החוף', tour_stop: 'עצירת הטיסה', orbit: 'טיסה סביב המקום', drone: 'מצב רחפן',

@@ -36,7 +36,7 @@ Open the printed local address. `npm run build` writes a static site to `dist/`.
 
 1. In the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 2. Merge to `main` (or run the *Deploy to GitHub Pages* workflow by hand).
-3. The site appears at `https://<user>.github.io/ColorTown/`.
+3. The site appears at https://islamhassadya11.github.io/SaveTheCoastLine/
 
 ## Photoreal mode
 
