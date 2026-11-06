@@ -12,9 +12,10 @@ export interface Climate {
   tide_gauge: { source: string; data: Record<string, { name: string; years: number[]; m: number[]; trend_mm_yr: number }> };
   co2: { source: string; annual: Record<string, number>; latest: { year: number; month: number; ppm: number } };
 }
+export interface Retreat { note: string; points: { name: string; lat: number; slope_pct: number; m_per_m: number }[] }
 export interface Exposure {
   bin_m: number;
-  sites: Record<string, { buildings: number[]; building_m2: number[]; road_m: number[]; rail_m: number[]; land_m2: number[] }>;
+  sites: Record<string, Record<'buildings' | 'building_m2' | 'road_m' | 'rail_m' | 'land_m2' | 'buildings_i' | 'road_m_i' | 'land_m2_i', number[]>>;
 }
 
 async function json<T>(name: string): Promise<T> {
@@ -34,12 +35,14 @@ async function gunzip(name: string): Promise<Uint8Array> {
 }
 
 export async function loadAll() {
-  const [sites, index, climate, exposure, grid] = await Promise.all([
+  const [sites, index, climate, exposure, grid, retreat, coastline] = await Promise.all([
     json<Site[]>('sites.json'),
     json<FloodIndex>('flood/index.json'),
     json<Climate>('climate.json'),
     json<Exposure>('exposure.json'),
     gunzip('flood/grid.bin.gz'),
+    json<Retreat>('retreat.json'),
+    json<GeoJSON.FeatureCollection>('coastline.json'),
   ]);
-  return { sites, index, climate, exposure, grid };
+  return { sites, index, climate, exposure, grid, retreat, coastline };
 }

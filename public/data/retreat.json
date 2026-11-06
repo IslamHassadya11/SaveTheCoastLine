@@ -1,0 +1,77 @@
+{
+ "note": "Illustration only: shoreline retreat (m) per metre of sea level rise = 1 / local beach slope, from the original Rising Tides lab. Sandy coasts typically retreat tens to a few hundred times the rise (Bruun-type erosion).",
+ "points": [
+  {
+   "name": "Ashdod / Ashkelon",
+   "lat": 31.815,
+   "slope_pct": 0.72,
+   "m_per_m": 139
+  },
+  {
+   "name": "Old Jaffa",
+   "lat": 32.0522,
+   "slope_pct": 1.8,
+   "m_per_m": 56
+  },
+  {
+   "name": "Tel Aviv & Yarkon",
+   "lat": 32.0885,
+   "slope_pct": 0.7,
+   "m_per_m": 143
+  },
+  {
+   "name": "Netanya cliffs",
+   "lat": 32.3285,
+   "slope_pct": 3.2,
+   "m_per_m": 31
+  },
+  {
+   "name": "Caesarea",
+   "lat": 32.5015,
+   "slope_pct": 0.9,
+   "m_per_m": 111
+  },
+  {
+   "name": "Taninim",
+   "lat": 32.5535,
+   "slope_pct": 0.45,
+   "m_per_m": 222
+  },
+  {
+   "name": "Dor / Tantura",
+   "lat": 32.608,
+   "slope_pct": 0.6,
+   "m_per_m": 167
+  },
+  {
+   "name": "Atlit",
+   "lat": 32.7052,
+   "slope_pct": 0.48,
+   "m_per_m": 208
+  },
+  {
+   "name": "Haifa & Kishon",
+   "lat": 32.8085,
+   "slope_pct": 0.55,
+   "m_per_m": 182
+  },
+  {
+   "name": "Old Akko",
+   "lat": 32.9212,
+   "slope_pct": 0.85,
+   "m_per_m": 118
+  },
+  {
+   "name": "Nahariya",
+   "lat": 33.0058,
+   "slope_pct": 0.65,
+   "m_per_m": 154
+  },
+  {
+   "name": "Rosh HaNikra",
+   "lat": 33.0932,
+   "slope_pct": 8.5,
+   "m_per_m": 12
+  }
+ ]
+}

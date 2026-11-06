@@ -58,6 +58,7 @@ a { color: var(--accent); }
 .brand p { margin: 0; font-size: 12.5px; color: var(--muted); }
 .views { margin-inline: auto; padding: 4px; }
 .tools { display: flex; gap: 2px; padding: 4px; }
+a.tbtn { text-decoration: none; }
 .tbtn { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); white-space: nowrap; }
 .tbtn:hover { background: var(--panel-2); color: var(--text); }
 .tbtn.icon-only { padding: 0 10px; }
@@ -276,7 +277,34 @@ html[dir='rtl'] .toggle input:checked + .sw::after { transform: translateX(-16px
 .lg-ends { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); direction: ltr; }
 .lg-ends b { font-weight: 500; }
 .lg-sw { width: 14px; height: 10px; border-radius: 3px; display: inline-block; }
-.lg-sw.saved { background: #fb923c; }
+.lg-row:has(.lg-line) { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
+.lg-sw.sea { background: #9ebdff; }
+.lg-sw.sea.sat { background: #2a6f9e; }
+.lg-sw.foam { background: #f0faff; box-shadow: inset 0 0 0 1px #9ebdff; }
+.lg-sw.bld { background: #f87171; }
+.lg-line { width: 14px; height: 0; border-top: 2px dashed #9fb8e8; display: inline-block; }
+.lg-line.sat { border-top-color: #fff; }
+.lg-note { font-size: 11.5px; color: var(--warn); }
+.row-split { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.style-seg { margin-inline-start: auto; }
+.cmp-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text-2); font-size: 13.5px; }
+.cmp-btn:hover { color: var(--text); border-color: var(--eco); }
+.cmp-btn.on { background: var(--eco); color: #04121f; border-color: var(--eco); font-weight: 600; }
+.style-note { margin: -4px 0 0; font-size: 12.5px; color: var(--warn); line-height: 1.4; }
+.stat.saved .v { color: var(--eco); }
+.readout .big .cmp-l { color: var(--accent); }
+.readout .big .vs { color: var(--text-2); font-size: 24px; }
+#map2 { position: fixed; inset: 0; z-index: 1; }
+#map2[hidden], #swipe[hidden] { display: none; }
+#swipe { position: fixed; top: 0; bottom: 0; z-index: 6; width: 0; pointer-events: none; }
+.sw-line { position: absolute; top: 0; bottom: 0; left: -1.5px; width: 3px; background: #fff; box-shadow: 0 0 0 1px rgba(7, 17, 31, 0.35), 0 0 14px rgba(0, 0, 0, 0.35); }
+.sw-handle { position: absolute; top: 50%; left: -22px; width: 44px; height: 44px; margin-top: -22px; border-radius: 50%; border: 3px solid #fff; background: var(--panel-solid); color: #fff; display: grid; place-items: center; pointer-events: auto; cursor: ew-resize; touch-action: none; box-shadow: var(--shadow); }
+.sw-lo, .sw-hi { position: absolute; top: 132px; display: grid; gap: 1px; padding: 7px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); white-space: nowrap; font-size: 13px; color: var(--text-2); box-shadow: var(--shadow); }
+.sw-lo { right: 12px; border-color: rgba(52, 211, 153, 0.6); }
+.sw-hi { left: 12px; border-color: rgba(213, 81, 129, 0.7); }
+.sw-lo b { color: var(--eco); } .sw-hi b { color: #f08aaf; }
+body.photo-on #map2, body.photo-on #swipe, body.presenting .sw-handle { display: none; }
+body.presenting #swipe .sw-handle { display: grid; }
 
 /* ---------- markers ---------- */
 .mk { display: flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; color: #0b1626; }
@@ -389,6 +417,13 @@ body.presenting #dock, body.presenting #rail, body.presenting #placebar, body.pr
   .stats { margin-inline-start: 0; width: 100%; justify-content: space-between; }
   .chip { flex: 1 1 45%; }
   #map .maplibregl-ctrl-bottom-right { bottom: 62px; }
+  .row-split { gap: 8px; }
+  .row-split .drivers, .row-split .style-seg { width: 100%; margin: 0; }
+  .row-split .drivers button, .row-split .style-seg button { flex: 1; padding-inline: 6px; }
+  .cmp-btn { width: 100%; justify-content: center; }
+  .style-note { font-size: 12px; }
+  body:has(#swipe:not([hidden])) #legend { display: none; }
+  .sw-lo, .sw-hi { top: 112px; font-size: 11.5px; padding: 5px 8px; }
   #places, #searchbox, #layerbox { top: 108px; inset-inline: 8px; width: auto; }
   #rail { top: auto; bottom: 0; transform: none; inset-inline: 0; display: flex; gap: 0; padding: 4px 4px max(4px, env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--line); }
   #rail button { flex: 1; width: auto; border: 0; box-shadow: none; background: transparent; backdrop-filter: none; font-size: 11.5px; padding: 6px 2px; }

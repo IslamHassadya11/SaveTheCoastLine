@@ -15,12 +15,18 @@ elevation data and real buildings, and see what our own choices change.
   - *IPCC scenario*: SSP1-1.9 to SSP5-8.5, plus the low-confidence ice-sheet collapse tail, any year 2020-2150, with uncertainty range.
   - *CO₂ budget*: how much CO₂ the world still emits → peak warming → sea level in 2100 and over ~2,000 years.
   - *Set it yourself*: 0-20 m.
-- **Storms on top** (high tide → extreme storm) and **"coast we can save"** (orange = floods only under SSP5-8.5, not under SSP1-1.9).
+- **Two ways to draw the sea**: *Real elevation* (only land below the water level floods) and *Illustration*, which also pushes the
+  shoreline inland by erosion - 12 to 220 m per metre of rise depending on the beach slope, as in the original lab - so the change is
+  visible even at realistic levels. Flooded land uses the sea's own colour with a white water's-edge line, and a dashed line marks today's coastline.
+- **3D buildings sink as you drag the slider**: water climbs the walls, and a building disappears once it is fully under.
+- **Storms on top** (high tide → extreme storm) and **Compare futures**: a swipe divider with net zero (SSP1-1.9) on the left and
+  fossil fuels (SSP5-8.5) on the right, plus the land, buildings and roads saved.
 - **Fly over every place**: 23 coastal sites, fly-around orbit, a full-coast flight north → south, and a keyboard **drone mode** (W/A/S/D, Q/E, R/F, Shift).
 - **Click anywhere** to get ground height, the sea level that reaches it and the first year it floods per scenario. **Search an address** ("is my home safe?").
 - **What can we do?** calculator: commuting, flights, food and home electricity for me / our seminar / the university / Israel / the world → tonnes CO₂, Arctic sea ice kept, seawater kept out of the ocean, Israeli coast kept dry.
 - **Data panel**: Hadera tide gauge (measured since 1995) joined to IPCC projections; Mauna Loa CO₂.
 - **Present mode**: an 8-step story for the seminar (arrow keys to move).
+- **Classic lab** (`/classic/`): the original Rising Tides page - animated Leaflet flood map, 3D coastal twin, action lab and seminar sites - kept as it was.
 - **English / עברית** with right-to-left layout. Shareable links (the URL keeps the view).
 
 ## Run it
@@ -36,7 +42,7 @@ Open the printed local address. `npm run build` writes a static site to `dist/`.
 
 1. In the repository: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 2. Merge to `main` (or run the *Deploy to GitHub Pages* workflow by hand).
-3. The site appears at `https://<user>.github.io/ColorTown/`.
+3. The site appears at https://islamhassadya11.github.io/SaveTheCoastLine/
 
 ## Photoreal mode
 

@@ -18,9 +18,9 @@ async function boot() {
   const d = await loadAll();
   initScience(d.climate);
   initStats(d.exposure);
-  const grid = new FloodGrid(d.index, d.grid);
+  const grid = new FloodGrid(d.index, d.grid, d.retreat);
   if (import.meta.env.DEV) (window as any).__rt = { grid, get map() { return map; } };
-  await createMap(document.getElementById('map')!, grid, d.sites);
+  await createMap(document.getElementById('map')!, grid, d.sites, d.coastline);
   initUI(d.sites, d.climate, grid, { onPhoto: () => openPhoto(grid, d.sites), onLeavePhoto: leavePhoto });
   const pad = () => {
     const dock = document.getElementById('dock')!.getBoundingClientRect();

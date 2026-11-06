@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Rising Tides - Sea level rise on Israel's coast</title>
+  <title>Save The Coast Line - Sea level rise on Israel's coast</title>
   <meta name="description" content="Explore sea level rise along Israel's Mediterranean coast in 2D, 3D and photoreal, driven by IPCC projections, real elevation data and your own emissions choices." />
   <meta name="theme-color" content="#07111f" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M2 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0'/%3E%3Cpath d='M2 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0'/%3E%3C/svg%3E" />
@@ -13,6 +13,8 @@
 </head>
 <body>
   <div id="map"></div>
+  <div id="map2" hidden></div>
+  <div id="swipe" hidden><div class="sw-line"></div><div class="sw-lo"></div><div class="sw-hi"></div><button class="sw-handle" aria-label="Drag to compare"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 6-6 6 6 6M15 6l6 6-6 6"/></svg></button></div>
   <div id="photo" hidden></div>
 
   <header id="top"></header>

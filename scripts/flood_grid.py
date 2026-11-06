@@ -10,13 +10,16 @@ class Grid:
         rows = int(round((self.N - self.S) / self.res)); cols = int(round((self.E_ - self.W) / self.res))
         self.F = np.full((rows + C, cols + C), 99.0, np.float32); self.E = np.full_like(self.F, 99.0)
         self.sea = np.zeros(self.F.shape, bool)
+        self.R = np.full(self.F.shape, 5100.0, np.float32)
         for c in self.idx['chunks']:
             e = np.frombuffer(raw, np.uint8, C * C, c['off']).reshape(C, C)
             d = np.frombuffer(raw, np.uint8, C * C, c['off'] + C * C).reshape(C, C)
+            rr = np.frombuffer(raw, np.uint8, C * C, c['off'] + 2 * C * C).reshape(C, C)
             sl = (slice(c['row'], c['row'] + C), slice(c['col'], c['col'] + C))
             self.E[sl] = np.where(e == 255, -1, e / 10 - 1)
             self.F[sl] = np.where(e == 255, -1, (e.astype(int) + d) / 10 - 1)
             self.sea[sl] = e == 255
+            self.R[sl] = rr * 20.0
     def rc(self, lon, lat):
         r = np.floor((self.N - np.asarray(lat)) / self.res).astype(int)
         c = np.floor((np.asarray(lon) - self.W) / self.res).astype(int)

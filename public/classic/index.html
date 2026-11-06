@@ -1,0 +1,2616 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RISING TIDES // Mediterranean Coastal Futures & Sustainability Lab</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Inter, Space Grotesk, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Leaflet 1.9.4 CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Three.js r128 for 3D Coastal & Urban Flood Simulation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin=""></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            abyss: {
+              950: '#030914',
+              900: '#071224',
+              800: '#0c1e38',
+              700: '#132d52',
+            },
+            aqua: {
+              300: '#67e8f9',
+              400: '#22d3ee',
+              500: '#06b6d4',
+              600: '#0284c7',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #030914;
+      color: #f1f5f9;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(7, 18, 36, 0.8);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(34, 211, 238, 0.35);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(34, 211, 238, 0.65);
+    }
+
+    /* Glassmorphism HUD panels */
+    .glass-panel {
+      background: rgba(7, 18, 36, 0.86);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.75);
+    }
+    .glass-sub {
+      background: rgba(12, 30, 56, 0.68);
+      border: 1px solid rgba(56, 189, 248, 0.16);
+    }
+
+    /* Range Slider Styling */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 7px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0ea5e9 0%, #22d3ee 45%, #f59e0b 75%, #ef4444 100%);
+    }
+    input[type="range"].eco-slider::-webkit-slider-runnable-track {
+      background: linear-gradient(90deg, #334155 0%, #10b981 55%, #34d399 100%);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid #06b6d4;
+      margin-top: -5.5px;
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.9);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+    }
+
+    /* Leaflet custom controls and dark popup */
+    .leaflet-container {
+      background: #040d1a !important;
+      font-family: 'Inter', sans-serif;
+    }
+    .leaflet-popup-content-wrapper {
+      background: rgba(7, 18, 36, 0.95) !important;
+      color: #f1f5f9 !important;
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      border-radius: 12px !important;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8) !important;
+    }
+    .leaflet-popup-tip {
+      background: rgba(7, 18, 36, 0.95) !important;
+    }
+
+    /* Waypoint Pulse Marker */
+    .waypoint-pin {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .waypoint-pin-core {
+      width: 14px;
+      height: 14px;
+      border-radius: 9999px;
+      border: 2px solid #fff;
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.95);
+      transition: transform 0.2s ease;
+    }
+    .waypoint-pin-ring {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border-radius: 9999px;
+      border: 2px solid currentColor;
+      animation: hydroPulse 2.2s infinite ease-out;
+      pointer-events: none;
+    }
+    @keyframes hydroPulse {
+      0% { transform: scale(0.55); opacity: 0.95; }
+      100% { transform: scale(1.85); opacity: 0; }
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-abyss-950 text-slate-100">
+
+  <!-- ==================== TOP NAVIGATION & GLOBAL TELEMETRY BAR ==================== -->
+  <header class="z-30 glass-panel border-b border-cyan-500/25 px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0">
+    <!-- Brand & Title -->
+    <div class="flex items-center gap-3">
+      <div class="relative w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/30 to-blue-700/40 border border-cyan-400/50 flex items-center justify-center shadow-lg shadow-cyan-950/60">
+        <!-- Animated Wave SVG Icon -->
+        <svg class="w-6 h-6 text-cyan-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2 12c1.5-2 3.5-2 5 0s3.5 2 5 0 3.5-2 5 0 3.5 2 5 0" />
+          <path stroke-linecap="round" stroke-linejoin="round" opacity="0.65" d="M2 17c1.5-2 3.5-2 5 0s3.5 2 5 0 3.5-2 5 0 3.5 2 5 0" />
+          <path stroke-linecap="round" stroke-linejoin="round" opacity="0.4" d="M12 3v6m0 0l-2.5-2.5M12 9l2.5-2.5" />
+        </svg>
+        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+        <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-display font-bold tracking-wider text-sm sm:text-base text-white">RISING TIDES</span>
+          <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">IPCC AR6 + IOLR Hydro-Lab</span>
+        </div>
+        <p class="text-[11px] text-slate-400 hidden sm:block">Mediterranean Coastal Futures, Continuous Inundation &amp; Sustainability Seminar Workbench</p>
+      </div>
+    </div>
+
+    <!-- Center View Mode Switcher (2D Map / 3D Twin / Split / Drone) -->
+    <div class="flex items-center bg-abyss-900/90 p-1 rounded-xl border border-cyan-500/25 gap-1">
+      <button id="btnView2D" onclick="setViewMode('2d')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 bg-cyan-500 text-abyss-950 font-semibold shadow">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        <span>2D Live Water Map</span>
+      </button>
+      <button id="btnView3D" onclick="setViewMode('3d')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-white/5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"/></svg>
+        <span>3D Coastal &amp; City Twin</span>
+      </button>
+      <button id="btnViewSplit" onclick="setViewMode('split')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-white/5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+        <span class="hidden md:inline">Split 2D + 3D Sync</span>
+        <span class="md:hidden">Split</span>
+      </button>
+      <button id="btnViewDrone" onclick="setViewMode('drone')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-white/5">
+        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+        <span class="hidden lg:inline">Drone Flyover</span>
+      </button>
+    </div>
+
+    <!-- Live KPI Readouts & Action Lab CTA -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <div class="glass-sub px-2.5 py-1 rounded-xl flex items-center gap-3">
+        <div>
+          <div class="text-[9px] uppercase tracking-wider text-slate-400">Total Sea Level</div>
+          <div id="topTotalWater" class="font-mono font-bold text-sm sm:text-base text-cyan-300">+0.56 m</div>
+        </div>
+        <div class="h-6 w-px bg-cyan-500/20"></div>
+        <div>
+          <div class="text-[9px] uppercase tracking-wider text-slate-400">Shoreline Shift</div>
+          <div id="topShoreShift" class="font-mono font-bold text-sm sm:text-base text-amber-300">+68 m inland</div>
+        </div>
+        <div class="hidden xl:block h-6 w-px bg-cyan-500/20"></div>
+        <div class="hidden xl:block">
+          <div class="text-[9px] uppercase tracking-wider text-slate-400">Atmospheric CO₂</div>
+          <div id="topCO2Ppm" class="font-mono font-bold text-sm text-rose-300">603 ppm (+2.7°C)</div>
+        </div>
+      </div>
+
+      <!-- Limit the Disaster Action Calculator Button -->
+      <button onclick="switchLeftTab('action')" id="headerActionBtn" class="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-abyss-950 font-display font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/60 transition transform hover:scale-[1.02]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span>Limit the Disaster Lab</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN WORKSPACE AREA ==================== -->
+  <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+    <!-- ==================== LEFT CONTROL & SCIENTIFIC WORKBENCH PANEL ==================== -->
+    <aside class="w-full lg:w-[410px] xl:w-[440px] glass-panel border-r border-cyan-500/20 flex flex-col z-20 shrink-0 max-h-[46vh] lg:max-h-full overflow-hidden">
+
+      <!-- Left Panel Navigation Tabs -->
+      <div class="grid grid-cols-3 gap-1 p-2 bg-abyss-950/80 border-b border-cyan-500/20 shrink-0">
+        <button id="tabBtnHydro" onclick="switchLeftTab('hydro')" class="py-2 px-2 rounded-lg text-xs font-display font-semibold flex items-center justify-center gap-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+          <span>🌊</span>
+          <span>1. Hydro Engine</span>
+        </button>
+        <button id="tabBtnAction" onclick="switchLeftTab('action')" class="py-2 px-2 rounded-lg text-xs font-display font-semibold flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-white/5 border border-transparent">
+          <span>🌱</span>
+          <span>2. Limit Disaster</span>
+        </button>
+        <button id="tabBtnSeminar" onclick="switchLeftTab('seminar')" class="py-2 px-2 rounded-lg text-xs font-display font-semibold flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-white/5 border border-transparent">
+          <span>🎓</span>
+          <span>3. Seminar &amp; Sites</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: SCIENTIFIC PROJECTION & HYDRO-INUNDATION ENGINE -->
+      <div id="panelHydro" class="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+
+        <!-- IPCC AR6 Scenario Selector -->
+        <div class="glass-sub p-3 rounded-xl space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-display font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+              <span>IPCC AR6 / IOLR Pathway</span>
+            </label>
+            <span id="badgeScenarioRate" class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-200 border border-cyan-400/30">7.8 mm/yr</span>
+          </div>
+
+          <select id="scenarioSelect" onchange="onScenarioChange(this.value)" class="w-full bg-abyss-950 border border-cyan-500/35 rounded-lg px-2.5 py-2 text-xs text-white font-medium focus:outline-none focus:border-cyan-400">
+            <option value="ssp119">SSP1-1.9 · Net-Zero by 2050 (+0.38m by 2100 | 1.4°C)</option>
+            <option value="ssp126">SSP1-2.6 · Paris Low Emissions (+0.44m by 2100 | 1.8°C)</option>
+            <option value="ssp245" selected>SSP2-4.5 · Current Trajectory (+0.56m by 2100 | 2.7°C)</option>
+            <option value="ssp370">SSP3-7.0 · Fragmented High (+0.68m by 2100 | 3.6°C)</option>
+            <option value="ssp585">SSP5-8.5 · Fossil-Fuel Intensive (+0.77m by 2100 | 4.4°C)</option>
+            <option value="ssp585_ice">SSP5-8.5+ · Rapid Ice Sheet Collapse (+1.60m by 2100)</option>
+            <option value="iolr_plan">Israel IOLR National Planning Benchmark (+1.06m)</option>
+            <option value="custom">Custom Stress-Test Slider (0.00m – 8.00m Direct Control)</option>
+          </select>
+
+          <p id="scenarioDesc" class="text-[11px] text-slate-300 leading-relaxed">
+            Intermediate pathway matching current global policies. Mediterranean thermal steric expansion and glacier loss push shoreline tens of meters inland across sandy beaches and river mouths.
+          </p>
+        </div>
+
+        <!-- Projection Year Slider + Time-Lapse Play -->
+        <div class="glass-sub p-3 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-display font-semibold text-slate-200">Projection Year Timeline</span>
+            <div class="flex items-center gap-2">
+              <span id="yearReadout" class="font-mono font-bold text-base text-cyan-300">2100</span>
+              <button id="btnPlayTimeline" onclick="toggleTimelinePlay()" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 text-[11px] font-semibold flex items-center gap-1 transition">
+                <span id="playIcon">▶</span>
+                <span id="playLabel">Time-Lapse</span>
+              </button>
+            </div>
+          </div>
+
+          <input id="yearSlider" type="range" min="2026" max="2150" step="1" value="2100" oninput="onYearInput(this.value)" class="w-full" />
+
+          <div class="flex justify-between text-[10px] font-mono text-slate-400">
+            <button onclick="onYearInput(2026)" class="hover:text-cyan-300">2026 (Baseline)</button>
+            <button onclick="onYearInput(2050)" class="hover:text-cyan-300">2050</button>
+            <button onclick="onYearInput(2075)" class="hover:text-cyan-300">2075</button>
+            <button onclick="onYearInput(2100)" class="hover:text-cyan-300 font-bold text-cyan-300">2100</button>
+            <button onclick="onYearInput(2150)" class="hover:text-cyan-300">2150</button>
+          </div>
+        </div>
+
+        <!-- Direct Mean Sea Level Rise Slider (Auto-synced or manual override) -->
+        <div class="glass-sub p-3 rounded-xl space-y-2 border-l-4 border-l-cyan-400">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-xs font-display font-bold text-white block">Mean Sea Level Rise (SLR)</span>
+              <span class="text-[10px] text-slate-400">Drag directly to test any water elevation (0m – 6m+)</span>
+            </div>
+            <span id="slrBaseReadout" class="font-mono font-bold text-base text-cyan-300">+0.56 m</span>
+          </div>
+
+          <input id="directSlrSlider" type="range" min="0" max="6.0" step="0.02" value="0.56" oninput="onDirectSlrInput(this.value)" class="w-full" />
+
+          <div class="flex justify-between text-[10px] font-mono text-slate-400">
+            <span>0.0m</span>
+            <span>+1.0m</span>
+            <span>+2.0m</span>
+            <span>+3.5m</span>
+            <span>+6.0m (Extreme)</span>
+          </div>
+
+          <!-- Animate Flood Wave Button -->
+          <div class="pt-1 flex gap-2">
+            <button onclick="triggerFloodWaveReplay()" class="flex-1 py-1.5 px-2.5 rounded-lg bg-gradient-to-r from-cyan-500/30 to-blue-600/30 hover:from-cyan-500/45 hover:to-blue-600/45 border border-cyan-400/50 text-xs font-medium text-cyan-200 flex items-center justify-center gap-1.5 transition">
+              <span>🌊</span>
+              <span>Animate Rising Flood Wave (0m → Current)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Extreme Weather / Storm Surge Compound Flooding Add-on -->
+        <div class="glass-sub p-3 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-display font-bold text-amber-300 flex items-center gap-1.5">
+              <span>⚡ Extreme Storm Surge &amp; Wave Setup</span>
+            </span>
+            <span id="surgeReadout" class="font-mono font-bold text-xs text-amber-300">+0.00 m</span>
+          </div>
+          <p class="text-[10px] text-slate-400">
+            Compound hazard: Winter storms ("Medicanes") pile transient storm surge and wave run-up on top of baseline sea level rise.
+          </p>
+          <div class="grid grid-cols-2 gap-1.5 pt-0.5">
+            <button onclick="setStormSurge(0, this)" class="surge-btn active-surge px-2 py-1.5 rounded-lg text-[11px] font-medium bg-cyan-500/25 border border-cyan-400/60 text-white text-left">
+              <div class="font-semibold">Calm Mean Sea</div>
+              <div class="text-[10px] font-mono text-cyan-300">+0.00m surge</div>
+            </button>
+            <button onclick="setStormSurge(0.50, this)" class="surge-btn px-2 py-1.5 rounded-lg text-[11px] font-medium bg-abyss-950/70 border border-white/10 text-slate-300 hover:border-amber-400/40 text-left">
+              <div class="font-semibold">Winter Swell</div>
+              <div class="text-[10px] font-mono text-amber-300">+0.50m surge</div>
+            </button>
+            <button onclick="setStormSurge(1.25, this)" class="surge-btn px-2 py-1.5 rounded-lg text-[11px] font-medium bg-abyss-950/70 border border-white/10 text-slate-300 hover:border-amber-400/40 text-left">
+              <div class="font-semibold">10-Yr Medicane</div>
+              <div class="text-[10px] font-mono text-orange-300">+1.25m surge</div>
+            </button>
+            <button onclick="setStormSurge(2.20, this)" class="surge-btn px-2 py-1.5 rounded-lg text-[11px] font-medium bg-abyss-950/70 border border-white/10 text-slate-300 hover:border-rose-400/40 text-left">
+              <div class="font-semibold">100-Yr Extreme</div>
+              <div class="text-[10px] font-mono text-rose-400">+2.20m surge</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sea Level Rise Physical Contributors Breakdown -->
+        <div class="glass-sub p-3 rounded-xl space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-display font-semibold text-slate-200">SLR Physical Budget Breakdown</span>
+            <span id="contributorTotalLabel" class="font-mono text-cyan-300 text-[11px]">100% Budget</span>
+          </div>
+          <!-- Stacked Bar -->
+          <div class="h-3 w-full rounded-full overflow-hidden flex bg-abyss-950 p-0.5 border border-white/10">
+            <div id="barThermal" style="width:38%" class="bg-sky-400 h-full transition-all duration-300" title="Thermal Expansion (Steric)"></div>
+            <div id="barGlaciers" style="width:22%" class="bg-cyan-300 h-full transition-all duration-300" title="Mountain Glaciers"></div>
+            <div id="barGreenland" style="width:20%" class="bg-indigo-400 h-full transition-all duration-300" title="Greenland Ice Sheet"></div>
+            <div id="barAntarctic" style="width:16%" class="bg-purple-400 h-full transition-all duration-300" title="Antarctic Ice Sheet"></div>
+            <div id="barLandWater" style="width:4%" class="bg-emerald-400 h-full transition-all duration-300" title="Land Water Storage"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-1 text-[10px] text-slate-300 pt-1">
+            <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-400"></span><span>Thermal Expansion: <strong id="valThermal" class="font-mono">38%</strong></span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-cyan-300"></span><span>Mountain Glaciers: <strong id="valGlaciers" class="font-mono">22%</strong></span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-400"></span><span>Greenland Ice: <strong id="valGreenland" class="font-mono">20%</strong></span></div>
+            <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-400"></span><span>Antarctic Ice: <strong id="valAntarctic" class="font-mono">16%</strong></span></div>
+          </div>
+        </div>
+
+        <!-- Visual Map Layer & Hydro Controls -->
+        <div class="glass-sub p-3 rounded-xl space-y-2">
+          <div class="text-xs font-display font-semibold text-slate-200">Map Base &amp; Hydro-Overlay Options</div>
+          <div class="grid grid-cols-3 gap-1.5">
+            <button onclick="setBaseMap('satellite')" id="mapBtnSat" class="px-2 py-1.5 rounded-lg text-[11px] font-medium bg-cyan-500/25 border border-cyan-400/60 text-white">Satellite Hybrid</button>
+            <button onclick="setBaseMap('street')" id="mapBtnStreet" class="px-2 py-1.5 rounded-lg text-[11px] font-medium bg-abyss-950 border border-white/10 text-slate-300">Street Map</button>
+            <button onclick="setBaseMap('dark')" id="mapBtnDark" class="px-2 py-1.5 rounded-lg text-[11px] font-medium bg-abyss-950 border border-white/10 text-slate-300">Dark Hydro</button>
+          </div>
+          <div class="flex flex-wrap gap-2 pt-1 text-[11px]">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="chkBaselineShore" checked onchange="toggleOverlayOption()" class="accent-cyan-400 rounded" />
+              <span>2026 Baseline Coastline</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="chkWaveFoam" checked onchange="toggleOverlayOption()" class="accent-cyan-400 rounded" />
+              <span>Animated Wave &amp; Foam</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" id="chkBuildings" checked onchange="toggleOverlayOption()" class="accent-cyan-400 rounded" />
+              <span>Submerged Footprints</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer text-emerald-300 font-medium">
+              <input type="checkbox" id="chkCompareMitigation" onchange="toggleOverlayOption()" class="accent-emerald-400 rounded" />
+              <span>Show "Rescued Coast" (SSP5-8.5 vs SSP1-1.9)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: THE "LIMIT THE DISASTER" CLIMATE ACTION & SUSTAINABILITY CALCULATOR -->
+      <div id="panelAction" class="hidden flex-1 overflow-y-auto p-3.5 space-y-3.5">
+        <div class="glass-sub p-3 rounded-xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/40 to-abyss-900/90 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-display font-bold uppercase tracking-wider text-emerald-300">🌱 Limit The Disaster // Action Lab</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">IEA + DESNZ Factors</span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-relaxed">
+            How much glacial ice, thermal ocean expansion, and Mediterranean beach can we rescue by shifting from high-carbon habits to sustainable transit, clean energy, and low-carbon living?
+          </p>
+        </div>
+
+        <!-- Scale of Collective Action Selector -->
+        <div class="glass-sub p-3 rounded-xl space-y-2">
+          <label class="text-xs font-display font-bold text-emerald-300 block">1. Scale of Collective Action</label>
+          <select id="actionScaleSelect" onchange="updateActionCalculator()" class="w-full bg-abyss-950 border border-emerald-500/40 rounded-lg px-2.5 py-2 text-xs text-white font-semibold focus:outline-none">
+            <option value="1">👤 Just Me (1 Individual Student)</option>
+            <option value="35" selected>🎓 Our Sustainability Seminar (35 Students)</option>
+            <option value="18000">🏛️ University Campus (18,000 Students &amp; Staff)</option>
+            <option value="500000">🚆 Coastal Metro Area (500,000 Commuters)</option>
+            <option value="15000000">🌍 Mediterranean Regional Pact (15,000,000 Citizens)</option>
+          </select>
+        </div>
+
+        <!-- Commute & Public Transit Shift -->
+        <div class="glass-sub p-3 rounded-xl space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-display font-semibold text-white">2. Public Transit &amp; Mobility Shift</span>
+            <span id="commuteKmLabel" class="font-mono text-xs text-emerald-300">35 km/day · 4 days/wk</span>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-[11px] text-slate-300 mb-1">
+              <span>Daily Round-Trip Commute Replaced</span>
+              <span id="valCommuteKm" class="font-mono text-emerald-300">35 km</span>
+            </div>
+            <input id="sliderCommuteKm" type="range" min="5" max="120" step="5" value="35" oninput="updateActionCalculator()" class="w-full eco-slider" />
+          </div>
+
+          <div>
+            <div class="flex justify-between text-[11px] text-slate-300 mb-1">
+              <span>Days per Week Switched from Solo Car (0.167 kg/km)</span>
+              <span id="valCommuteDays" class="font-mono text-emerald-300">4 days/wk</span>
+            </div>
+            <input id="sliderCommuteDays" type="range" min="0" max="7" step="1" value="4" oninput="updateActionCalculator()" class="w-full eco-slider" />
+          </div>
+
+          <div class="grid grid-cols-4 gap-1 pt-1">
+            <button onclick="setTransitMode('rail', this)" class="transit-btn px-1.5 py-1.5 rounded-lg text-[10px] font-semibold bg-emerald-500/25 border border-emerald-400 text-white text-center">
+              🚆 Israel Rail<br><span class="font-mono text-[9px] text-emerald-300">0.035 kg</span>
+            </button>
+            <button onclick="setTransitMode('bus', this)" class="transit-btn px-1.5 py-1.5 rounded-lg text-[10px] font-semibold bg-abyss-950 border border-white/10 text-slate-300 text-center">
+              🚌 Public Bus<br><span class="font-mono text-[9px] text-slate-400">0.104 kg</span>
+            </button>
+            <button onclick="setTransitMode('bike', this)" class="transit-btn px-1.5 py-1.5 rounded-lg text-[10px] font-semibold bg-abyss-950 border border-white/10 text-slate-300 text-center">
+              🚲 Bike/Walk<br><span class="font-mono text-[9px] text-emerald-300">0.000 kg</span>
+            </button>
+            <button onclick="setTransitMode('evpool', this)" class="transit-btn px-1.5 py-1.5 rounded-lg text-[10px] font-semibold bg-abyss-950 border border-white/10 text-slate-300 text-center">
+              ⚡ EV Pool<br><span class="font-mono text-[9px] text-slate-400">0.042 kg</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Clean Energy & Low-Carbon Diet Sliders -->
+        <div class="glass-sub p-3 rounded-xl space-y-2.5">
+          <div>
+            <div class="flex justify-between text-[11px] text-slate-300 mb-1">
+              <span>☀️ Rooftop Solar &amp; Smart HVAC Efficiency</span>
+              <span id="valSolarPct" class="font-mono text-emerald-300">65%</span>
+            </div>
+            <input id="sliderSolarPct" type="range" min="0" max="100" step="5" value="65" oninput="updateActionCalculator()" class="w-full eco-slider" />
+          </div>
+
+          <div>
+            <div class="flex justify-between text-[11px] text-slate-300 mb-1">
+              <span>🥗 Plant-Rich Mediterranean Diet &amp; Zero-Waste</span>
+              <span id="valDietDays" class="font-mono text-emerald-300">5 days/wk</span>
+            </div>
+            <input id="sliderDietDays" type="range" min="0" max="7" step="1" value="5" oninput="updateActionCalculator()" class="w-full eco-slider" />
+          </div>
+        </div>
+
+        <!-- Visceral Impact Readout Cards -->
+        <div class="grid grid-cols-2 gap-2">
+          <div class="glass-sub p-2.5 rounded-xl border border-emerald-500/30">
+            <div class="text-[10px] uppercase text-slate-400">CO₂e Avoided (to 2100)</div>
+            <div id="impactCO2Tons" class="font-mono font-bold text-base text-emerald-300 mt-0.5">10,840 t</div>
+            <div id="impactCO2Annual" class="text-[10px] font-mono text-slate-400">146.5 t / year</div>
+          </div>
+          <div class="glass-sub p-2.5 rounded-xl border border-cyan-500/30">
+            <div class="text-[10px] uppercase text-slate-400">Glacier &amp; Land Ice Saved</div>
+            <div id="impactIceTons" class="font-mono font-bold text-base text-cyan-300 mt-0.5">162,600 t</div>
+            <div id="impactArcticM2" class="text-[10px] font-mono text-slate-400">32,520 m² Arctic ice</div>
+          </div>
+          <div class="glass-sub p-2.5 rounded-xl border border-sky-500/30">
+            <div class="text-[10px] uppercase text-slate-400">Meltwater Kept Out of Sea</div>
+            <div id="impactWaterLiters" class="font-mono font-bold text-base text-sky-300 mt-0.5">149.6M L</div>
+            <div id="impactPools" class="text-[10px] font-mono text-slate-400">~59.8 Olympic Pools</div>
+          </div>
+          <div class="glass-sub p-2.5 rounded-xl border border-amber-500/30">
+            <div class="text-[10px] uppercase text-slate-400">Coastal Habitat Rescued</div>
+            <div id="impactBeachM2" class="font-mono font-bold text-base text-amber-300 mt-0.5">4,336 m²</div>
+            <div class="text-[10px] font-mono text-slate-400">Sandy beach &amp; estuary</div>
+          </div>
+        </div>
+
+        <!-- Apply Mitigation Comparison to Live Map & 3D -->
+        <button onclick="applyMitigationComparisonToMap()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-abyss-950 font-display font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition">
+          <span>🛡️</span>
+          <span>Visualize Rescued Coastline on Map &amp; 3D (SSP5-8.5 vs SSP1-1.9)</span>
+        </button>
+      </div>
+
+      <!-- TAB 3: 12 COASTAL WAYPOINTS & SEMINAR WORKBENCH -->
+      <div id="panelSeminar" class="hidden flex-1 overflow-y-auto p-3.5 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-display font-bold uppercase tracking-wider text-cyan-300">12 Israeli Coastal Waypoints (N → S)</span>
+          <button onclick="exportSimulationCSV()" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/40 text-[11px] font-mono text-cyan-200 flex items-center gap-1">
+            <span>⬇ Export CSV</span>
+          </button>
+        </div>
+
+        <!-- Waypoint Cards List (Populated dynamically) -->
+        <div id="waypointCardsList" class="space-y-2"></div>
+
+        <!-- Seminar Discussion Prompts -->
+        <div class="glass-sub p-3 rounded-xl space-y-2 border-l-4 border-l-amber-400">
+          <div class="text-xs font-display font-bold text-amber-300">🎓 Sustainability Seminar Discussion Prompts</div>
+          <div id="seminarPromptText" class="text-[11px] text-slate-200 leading-relaxed">
+            1. In Haifa Bay and the Kishon Estuary, how does compound flooding (mean SLR + winter storm surge + river runoff) threaten petrochemical &amp; port infrastructure differently than Netanya's eroding kurkar cliffs?
+          </div>
+          <div class="flex gap-1.5 pt-1">
+            <button onclick="cycleSeminarPrompt(-1)" class="px-2 py-1 rounded bg-abyss-950 text-[10px] text-slate-300 hover:text-white border border-white/10">← Prev Prompt</button>
+            <button onclick="cycleSeminarPrompt(1)" class="px-2 py-1 rounded bg-abyss-950 text-[10px] text-cyan-300 hover:text-white border border-cyan-500/30">Next Prompt →</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ==================== RIGHT MAIN VIEWPORT (2D MAP + 3D SIMULATOR + BOTTOM ANALYTICS DOCK) ==================== -->
+    <main class="flex-1 flex flex-col relative overflow-hidden bg-abyss-950">
+
+      <!-- Active Waypoint Quick-Jump Ribbon -->
+      <div class="z-20 bg-abyss-900/90 border-b border-cyan-500/20 px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto shrink-0">
+        <span class="text-[10px] font-mono uppercase text-cyan-400 shrink-0 mr-1">Coastline Waypoints:</span>
+        <div id="quickWaypointBar" class="flex items-center gap-1.5"></div>
+      </div>
+
+      <!-- DUAL / SPLIT STAGE CONTAINER -->
+      <div id="stageContainer" class="flex-1 grid grid-cols-1 relative overflow-hidden">
+
+        <!-- ==================== 2D LEAFLET + CONTINUOUS ANIMATED WATER OVERLAY ==================== -->
+        <div id="mapStageWrapper" class="relative w-full h-full overflow-hidden">
+          <div id="leafletMap" class="w-full h-full z-0"></div>
+
+          <!-- High-Resolution Continuous Animated Water & Shoreline Foam Canvas Overlay -->
+          <canvas id="hydroCanvas2D" class="absolute inset-0 pointer-events-none z-10"></canvas>
+
+          <!-- Floating 2D Map Legend & Shoreline Shift HUD -->
+          <div class="absolute top-3 right-3 z-20 glass-panel p-2.5 rounded-xl max-w-[265px] space-y-1.5 pointer-events-auto">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-mono uppercase tracking-wider text-cyan-300 font-semibold">Continuous Hydro-Layer</span>
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            </div>
+            <!-- Bathymetric Color Ramp -->
+            <div class="h-2.5 w-full rounded-full overflow-hidden flex border border-white/20" style="background: linear-gradient(90deg, #072a47 0%, #0d5c91 35%, #1ca3ec 70%, #5ad2f4 90%, #e0f2fe 100%);"></div>
+            <div class="flex justify-between text-[9px] font-mono text-slate-300">
+              <span>Deep Sea</span>
+              <span>Submerged Zone</span>
+              <span>Foam Edge</span>
+            </div>
+            <div class="pt-1 border-t border-white/10 text-[10px] space-y-0.5">
+              <div class="flex justify-between"><span class="text-slate-400">Selected Site:</span><strong id="hudSiteName" class="text-white">Haifa Bay &amp; Kishon</strong></div>
+              <div class="flex justify-between"><span class="text-slate-400">Local Slope:</span><strong id="hudLocalSlope" class="font-mono text-cyan-300">0.75% (Low Plain)</strong></div>
+              <div class="flex justify-between"><span class="text-slate-400">Inland Shift:</span><strong id="hudInlandMeters" class="font-mono text-amber-300">+74.7 m</strong></div>
+              <div id="hudRescuedRow" class="hidden flex justify-between text-emerald-300"><span class="font-semibold">Rescued Zone:</span><strong id="hudRescuedMeters" class="font-mono">52.0 m saved</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== 3D THREE.JS COASTAL & URBAN FLOOD SIMULATOR ==================== -->
+        <div id="threeStageWrapper" class="hidden relative w-full h-full overflow-hidden bg-abyss-950 border-l border-cyan-500/30">
+          <canvas id="threeCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+          <!-- 3D District & Camera Preset Bar (Top Left of 3D View) -->
+          <div class="absolute top-3 left-3 z-20 flex flex-wrap items-center gap-2 pointer-events-auto">
+            <div class="glass-panel px-2.5 py-1.5 rounded-xl flex items-center gap-2">
+              <span class="text-[10px] font-mono uppercase text-cyan-300">3D Twin Scene:</span>
+              <select id="select3DScene" onchange="load3DDistrict(this.value)" class="bg-abyss-950 border border-cyan-500/40 rounded-lg px-2 py-1 text-xs text-white font-semibold focus:outline-none">
+                <option value="haifa">1. Haifa Bay, Port &amp; Kishon Estuary</option>
+                <option value="akko">2. Old Akko Peninsula &amp; Crusader Walls</option>
+                <option value="dor">3. Dor / Tantura Lagoon &amp; Caesarea Aqueduct</option>
+                <option value="telaviv">4. Tel Aviv Promenade, Yarkon &amp; Old Jaffa</option>
+                <option value="nahariya">5. Nahariya &amp; Ga'aton River Corridor</option>
+                <option value="fullcoast">6. Full Israeli Coastline DEM (Rosh HaNikra → Zikim)</option>
+              </select>
+            </div>
+
+            <!-- Camera Angle Presets -->
+            <div class="glass-panel p-1 rounded-xl flex items-center gap-1">
+              <button onclick="set3DCameraPreset('aerial')" class="px-2 py-1 rounded-lg text-[11px] text-slate-200 hover:bg-cyan-500/25 hover:text-cyan-200 transition">Aerial</button>
+              <button onclick="set3DCameraPreset('seawall')" class="px-2 py-1 rounded-lg text-[11px] text-slate-200 hover:bg-cyan-500/25 hover:text-cyan-200 transition">Seawall Level</button>
+              <button onclick="set3DCameraPreset('harbor')" class="px-2 py-1 rounded-lg text-[11px] text-slate-200 hover:bg-cyan-500/25 hover:text-cyan-200 transition">Estuary / Harbor</button>
+              <button onclick="set3DCameraPreset('drone')" class="px-2 py-1 rounded-lg text-[11px] text-cyan-300 font-semibold hover:bg-cyan-500/25 transition">Drone Orbit</button>
+            </div>
+          </div>
+
+          <!-- 3D Live Urban Flood Telemetry Overlay (Top Right of 3D View) -->
+          <div class="absolute top-3 right-3 z-20 glass-panel p-3 rounded-xl w-64 space-y-1.5 pointer-events-auto">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono uppercase tracking-wider text-cyan-300 font-bold">3D Hydro-Twin Telemetry</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300">60 FPS WebGL</span>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5 pt-1">
+              <div class="glass-sub p-1.5 rounded-lg">
+                <div class="text-[9px] text-slate-400">Structures Flooded</div>
+                <div id="threeFloodedCount" class="font-mono font-bold text-sm text-rose-400">14 / 68</div>
+              </div>
+              <div class="glass-sub p-1.5 rounded-lg">
+                <div class="text-[9px] text-slate-400">Max Urban Depth</div>
+                <div id="threeMaxDepth" class="font-mono font-bold text-sm text-cyan-300">0.56 m</div>
+              </div>
+            </div>
+            <div class="text-[10px] text-slate-300 flex items-center justify-between pt-0.5">
+              <span>Submerged Highlight:</span>
+              <span class="font-mono text-rose-300">Crimson / Cyan Glow</span>
+            </div>
+            <div class="text-[10px] text-slate-400">
+              Drag to orbit · Scroll to zoom · Watch continuous blue water flow inland over roads &amp; piers.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==================== BOTTOM SCIENTIFIC DOCK: AQUIFER CROSS-SECTION + IPCC AR6 CURVES ==================== -->
+      <section id="bottomDock" class="z-20 glass-panel border-t border-cyan-500/25 px-3 py-2 shrink-0 transition-all duration-300">
+        <div class="flex items-center justify-between mb-1.5">
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-display font-bold text-cyan-300 flex items-center gap-1.5">
+              <span>📐 Live Coastal Cross-Section &amp; Ghyben-Herzberg Aquifer Intrusion</span>
+            </span>
+            <span id="selectedWaypointBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-200 border border-cyan-500/30">
+              Haifa Bay &amp; Kishon Estuary (32.808°N, 35.032°E)
+            </span>
+          </div>
+          <button onclick="toggleBottomDock()" id="btnToggleDock" class="text-xs font-mono text-slate-400 hover:text-cyan-300 px-2 py-0.5 rounded border border-white/10">
+            Minimize Dock ▼
+          </button>
+        </div>
+
+        <div id="bottomDockContent" class="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[142px]">
+          <!-- Left 7 Cols: Interactive 2D Geological & Aquifer Saltwater Intrusion Cross-Section -->
+          <div class="lg:col-span-7 glass-sub rounded-xl p-2 relative flex flex-col justify-between overflow-hidden">
+            <canvas id="crossSectionCanvas" class="w-full h-full block"></canvas>
+          </div>
+
+          <!-- Right 5 Cols: Multi-Curve IPCC AR6 Trajectory Chart (2026 - 2150) -->
+          <div class="lg:col-span-5 glass-sub rounded-xl p-2 relative flex flex-col justify-between overflow-hidden">
+            <canvas id="ipccChartCanvas" class="w-full h-full block"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast Notification Box (No alert() used anywhere) -->
+  <div id="toastBox" class="fixed bottom-5 right-5 z-50 hidden glass-panel border border-emerald-400/60 px-4 py-3 rounded-xl shadow-2xl text-xs text-white flex items-center gap-2.5">
+    <span id="toastIcon" class="text-base">✅</span>
+    <span id="toastMessage" class="font-medium">Action applied!</span>
+  </div>
+
+  <!-- ==================== COMPLETE APPLICATION JAVASCRIPT ==================== -->
+  <script>
+    /***************************************************************************
+     * 1. SCIENTIFIC DATA & IPCC AR6 / IOLR PATHWAY MODELS
+     ***************************************************************************/
+    const IPCC_SCENARIOS = {
+      ssp119: {
+        id: 'ssp119',
+        name: 'SSP1-1.9 (Net-Zero Sustainability)',
+        short: 'SSP1-1.9',
+        color: '#10b981',
+        slr2050: 0.18,
+        slr2100: 0.38,
+        slr2150: 0.57,
+        rateMmYr: 4.1,
+        co2Ppm2100: 393,
+        tempC2100: 1.4,
+        budget: { thermal: 42, glaciers: 25, greenland: 17, antarctic: 12, land: 4 },
+        desc: 'Aggressive global decarbonization achieving Net-Zero CO₂ around 2050. Limits global warming to ~1.4°C and stabilizes ice-sheet acceleration, saving over 60% of vulnerable Israeli sandy beaches.'
+      },
+      ssp126: {
+        id: 'ssp126',
+        name: 'SSP1-2.6 (Low Emissions Paris Pact)',
+        short: 'SSP1-2.6',
+        color: '#22d3ee',
+        slr2050: 0.19,
+        slr2100: 0.44,
+        slr2150: 0.68,
+        rateMmYr: 5.2,
+        co2Ppm2100: 446,
+        tempC2100: 1.8,
+        budget: { thermal: 40, glaciers: 24, greenland: 19, antarctic: 13, land: 4 },
+        desc: 'Strong renewable energy transition keeping global warming below 2.0°C. Moderate coastal retreat along Haifa Bay and Tel Aviv beaches; manageable with nature-based sand nourishment.'
+      },
+      ssp245: {
+        id: 'ssp245',
+        name: 'SSP2-4.5 (Intermediate / Current Policies)',
+        short: 'SSP2-4.5',
+        color: '#f59e0b',
+        slr2050: 0.20,
+        slr2100: 0.56,
+        slr2150: 0.92,
+        rateMmYr: 7.8,
+        co2Ppm2100: 603,
+        tempC2100: 2.7,
+        budget: { thermal: 38, glaciers: 22, greenland: 20, antarctic: 16, land: 4 },
+        desc: 'Intermediate pathway matching current global policies. Mediterranean thermal steric expansion and glacier loss push the shoreline 50–90m inland across estuaries and low-lying beaches.'
+      },
+      ssp370: {
+        id: 'ssp370',
+        name: 'SSP3-7.0 (High Emissions Regional Rivalry)',
+        short: 'SSP3-7.0',
+        color: '#f97316',
+        slr2050: 0.22,
+        slr2100: 0.68,
+        slr2150: 1.15,
+        rateMmYr: 10.4,
+        co2Ppm2100: 867,
+        tempC2100: 3.6,
+        budget: { thermal: 36, glaciers: 21, greenland: 22, antarctic: 17, land: 4 },
+        desc: 'Continued fossil fuel reliance and weak climate cooperation. Causes severe saltwater intrusion into Israel’s coastal aquifer and chronic winter flooding in Nahariya and Kishon.'
+      },
+      ssp585: {
+        id: 'ssp585',
+        name: 'SSP5-8.5 (Fossil-Fuel Intensive)',
+        short: 'SSP5-8.5',
+        color: '#ef4444',
+        slr2050: 0.23,
+        slr2100: 0.77,
+        slr2150: 1.32,
+        rateMmYr: 14.2,
+        co2Ppm2100: 1135,
+        tempC2100: 4.4,
+        budget: { thermal: 34, glaciers: 19, greenland: 24, antarctic: 19, land: 4 },
+        desc: 'Unmitigated fossil-fuel intensive growth. Sea level rise rate exceeds 14 mm/yr by 2100, permanently submerging Tel Aviv beaches, Dor lagoons, and low-lying Haifa Bay infrastructure.'
+      },
+      ssp585_ice: {
+        id: 'ssp585_ice',
+        name: 'SSP5-8.5+ (Marine Ice-Cliff Instability)',
+        short: 'SSP5-8.5+ Ice',
+        color: '#ec4899',
+        slr2050: 0.31,
+        slr2100: 1.60,
+        slr2150: 4.80,
+        rateMmYr: 28.5,
+        co2Ppm2100: 1135,
+        tempC2100: 4.8,
+        budget: { thermal: 22, glaciers: 13, greenland: 28, antarctic: 35, land: 2 },
+        desc: 'IPCC AR6 low-confidence/high-impact tail risk where Thwaites and West Antarctic marine ice sheets undergo rapid instability, driving +1.6m by 2100 and +4.8m by 2150.'
+      },
+      iolr_plan: {
+        id: 'iolr_plan',
+        name: 'Israel IOLR National Planning Benchmark',
+        short: 'IOLR +1.06m',
+        color: '#38bdf8',
+        slr2050: 0.35,
+        slr2100: 1.06,
+        slr2150: 1.65,
+        rateMmYr: 11.8,
+        co2Ppm2100: 780,
+        tempC2100: 3.2,
+        budget: { thermal: 35, glaciers: 20, greenland: 23, antarctic: 18, land: 4 },
+        desc: 'Official Israeli coastal engineering and statutory planning benchmark (+1.06m by 2100) recommended by Israel Oceanographic & Limnological Research (IOLR) for seawalls and ports.'
+      },
+      custom: {
+        id: 'custom',
+        name: 'Custom Stress-Test & Extreme Surge',
+        short: 'Custom',
+        color: '#a855f7',
+        slr2050: 1.00,
+        slr2100: 2.00,
+        slr2150: 3.50,
+        rateMmYr: 18.0,
+        co2Ppm2100: 950,
+        tempC2100: 3.9,
+        budget: { thermal: 30, glaciers: 18, greenland: 25, antarctic: 24, land: 3 },
+        desc: 'Direct manual elevation control. Drag the Mean Sea Level Rise slider freely up to +6.0m (plus up to +2.2m storm surge) to stress-test coastal cities and river corridors.'
+      }
+    };
+
+    /***************************************************************************
+     * 2. 12 REAL ISRAELI MEDITERRANEAN COASTAL WAYPOINTS (NORTH -> SOUTH)
+     ***************************************************************************/
+    const COASTAL_WAYPOINTS = [
+      {
+        id: 'rosh_hanikra',
+        name: 'Rosh HaNikra Sea Grottos',
+        shortName: 'Rosh HaNikra',
+        lat: 33.0932,
+        lng: 35.1044,
+        zoom: 15,
+        scene3d: 'nahariya',
+        slopePct: 8.5, // Steep chalk cliff & sea grottos
+        cliffHeightM: 28,
+        aquiferDepthM: 18,
+        riskLevel: 'High Heritage / Geomorphological',
+        color: '#38bdf8',
+        summary: 'White chalk cliffs and cavernous sea grottos at Israel’s northern border. Rising sea levels and wave setup submerge the upper grotto chambers and accelerate karstic wave-notch undercutting.',
+        landmarks: ['Chalk Sea Grottos', 'British Mandate Railway Tunnel', 'Biogenic Vermetid Reefs']
+      },
+      {
+        id: 'nahariya',
+        name: 'Nahariya & Ga’aton River Estuary',
+        shortName: 'Nahariya',
+        lat: 33.0058,
+        lng: 35.0920,
+        zoom: 15,
+        scene3d: 'nahariya',
+        slopePct: 0.65, // Very flat coastal plain + river channel
+        cliffHeightM: 3.2,
+        aquiferDepthM: 4.5,
+        riskLevel: 'Critical Compound Flooding',
+        color: '#ef4444',
+        summary: 'The Ga’aton River bisects downtown Nahariya along its main boulevard. When high Mediterranean sea level blocks river drainage during winter rainstorms, severe compound flooding inundates the city center.',
+        landmarks: ['Sderot HaGa’aton River Channel', 'Nahariya Promenade', 'Sokolov Beach']
+      },
+      {
+        id: 'akko',
+        name: 'Old Akko Harbor & Crusader Seawalls',
+        shortName: 'Old Akko',
+        lat: 32.9212,
+        lng: 35.0682,
+        zoom: 15,
+        scene3d: 'akko',
+        slopePct: 0.85,
+        cliffHeightM: 6.5,
+        aquiferDepthM: 5.0,
+        riskLevel: 'Extreme UNESCO Cultural Heritage',
+        color: '#f97316',
+        summary: 'UNESCO World Heritage walled peninsula. While Crusader sandstone walls protect the western ramparts, the low-lying eastern tombolo and Pisano Harbor flood above +1.2m, threatening to isolate Old Akko as an island.',
+        landmarks: ['Crusader Seawalls', 'Khan al-Umdan', 'Pisan Harbor & Templar Tunnel']
+      },
+      {
+        id: 'haifa',
+        name: 'Haifa Bay, Port & Kishon Estuary',
+        shortName: 'Haifa & Kishon',
+        lat: 32.8085,
+        lng: 35.0315,
+        zoom: 14,
+        scene3d: 'haifa',
+        slopePct: 0.55, // Ultra-low Zevulun valley & Kishon flats
+        cliffHeightM: 2.8,
+        aquiferDepthM: 3.5,
+        riskLevel: 'Critical Port & Industrial Basin',
+        color: '#ef4444',
+        summary: 'Low-lying alluvial plain between Mount Carmel and Akko. The Kishon River mouth, container terminals, and bay industrial zones sit <2m above sea level, allowing rising water to penetrate deep inland along the river.',
+        landmarks: ['Port of Haifa Terminals', 'Kishon Estuary & Marina', 'Bat Galim Promenade']
+      },
+      {
+        id: 'atlit',
+        name: 'Atlit Templar Fortress & Salt Pans',
+        shortName: 'Atlit',
+        lat: 32.7052,
+        lng: 34.9348,
+        zoom: 14,
+        scene3d: 'dor',
+        slopePct: 0.48,
+        cliffHeightM: 3.0,
+        aquiferDepthM: 3.8,
+        riskLevel: 'High Wetland & Archaeological',
+        color: '#f59e0b',
+        summary: 'Crusader sea fortress on a rocky promontory flanked by vast coastal salt pans and submerged Neolithic Atlit-Yam. Even +0.6m of SLR reconnects the coastal salt pans directly with the open sea.',
+        landmarks: ['Château Pèlerin Fortress', 'Atlit Biodiversity Salt Pans', 'Submerged Neolithic Village']
+      },
+      {
+        id: 'dor',
+        name: 'Dor (Tantura) Lagoon & Tombolo Islands',
+        shortName: 'Dor / Tantura',
+        lat: 32.6080,
+        lng: 34.9162,
+        zoom: 15,
+        scene3d: 'dor',
+        slopePct: 0.60,
+        cliffHeightM: 4.0,
+        aquiferDepthM: 4.2,
+        riskLevel: 'Severe Lagoon & Island Submergence',
+        color: '#ef4444',
+        summary: 'Israel’s most intricate natural pocket beaches and kurkar abrasion platforms. Rising waters drown the offshore tombolo islets that break winter waves, exposing Tel Dor and Nahsholim to direct wave erosion.',
+        landmarks: ['Tantura Lagoon', 'Tel Dor Archaeological Mound', 'Kurkar Wave-Breaker Islets']
+      },
+      {
+        id: 'maagan_michael',
+        name: 'Ma’agan Michael & Taninim Estuary',
+        shortName: 'Taninim River',
+        lat: 32.5535,
+        lng: 34.9055,
+        zoom: 14,
+        scene3d: 'dor',
+        slopePct: 0.45,
+        cliffHeightM: 2.5,
+        aquiferDepthM: 3.0,
+        riskLevel: 'Critical Estuarine & Aquaculture',
+        color: '#ef4444',
+        summary: 'Nahal Taninim (Israel’s last unpolluted coastal stream) and adjacent fishponds sit right at mean sea level. Rising tides push a marine saltwater wedge kilometers up the Taninim nature reserve.',
+        landmarks: ['Nahal Taninim Roman Dam', 'Coastal Fishpond Berms', 'Ma’agan Michael Nature Reserve']
+      },
+      {
+        id: 'caesarea',
+        name: 'Caesarea Ancient Harbor & Roman Aqueduct',
+        shortName: 'Caesarea',
+        lat: 32.5015,
+        lng: 34.8892,
+        zoom: 15,
+        scene3d: 'dor',
+        slopePct: 0.90,
+        cliffHeightM: 5.5,
+        aquiferDepthM: 5.0,
+        riskLevel: 'Critical Antiquarian & Beach Loss',
+        color: '#f97316',
+        summary: 'Herod’s harbor and the famous High-Level Roman Aqueduct running along the sandy beach. Sea level rise and winter storms progressively undermine the sand dune supporting the 2,000-year-old aqueduct arches.',
+        landmarks: ['Roman Aqueduct Beach', 'Sunken Herodian Sebastos Port', 'Crusader Citadel']
+      },
+      {
+        id: 'netanya',
+        name: 'Netanya Kurkar Coastal Cliffs',
+        shortName: 'Netanya Cliffs',
+        lat: 32.3285,
+        lng: 34.8482,
+        zoom: 15,
+        scene3d: 'telaviv',
+        slopePct: 3.20, // Narrow beach backed by 35m cliff
+        cliffHeightM: 36.0,
+        aquiferDepthM: 14.0,
+        riskLevel: 'Severe Cliff Collapse Hazard',
+        color: '#f97316',
+        summary: 'Narrow beaches beneath 35-meter friable calcareous sandstone (kurkar) cliffs. As sea level rises, waves strike directly against the cliff toe, triggering catastrophic cliff collapses near coastal hotels.',
+        landmarks: ['Netanya Cliff Promenade', 'Offshore Submerged Breakwaters', 'Sironit Beach Elevator']
+      },
+      {
+        id: 'telaviv',
+        name: 'Tel Aviv Promenade & Yarkon Estuary',
+        shortName: 'Tel Aviv & Yarkon',
+        lat: 32.0885,
+        lng: 34.7695,
+        zoom: 14,
+        scene3d: 'telaviv',
+        slopePct: 0.70,
+        cliffHeightM: 4.2,
+        aquiferDepthM: 4.5,
+        riskLevel: 'Extreme Economic & Urban Corridor',
+        color: '#ef4444',
+        summary: 'Israel’s economic hub. Rising seas submerge Gordon, Frishman, and Hilton sandy beaches against the concrete seawall while pushing marine floodwaters deep up the Yarkon River corridor into northern Tel Aviv.',
+        landmarks: ['Tel Aviv Beachfront Promenade', 'Yarkon River Estuary & Reading', 'Gordon Pool & Marina']
+      },
+      {
+        id: 'jaffa',
+        name: 'Old Jaffa Port & Andromeda Rock',
+        shortName: 'Old Jaffa',
+        lat: 32.0522,
+        lng: 34.7492,
+        zoom: 15,
+        scene3d: 'telaviv',
+        slopePct: 1.80,
+        cliffHeightM: 18.0,
+        aquiferDepthM: 8.5,
+        riskLevel: 'High Port & Seawall Overtopping',
+        color: '#f59e0b',
+        summary: 'One of the world’s oldest active ports. While historic Jaffa rises on a kurkar hill, the port quays, hangars, and Ajami seawall face chronic wave overtopping and mooring inundation above +0.8m.',
+        landmarks: ['Old Jaffa Harbor Quays', 'Andromeda Sea Rocks', 'Jaffa Slope Park Seawall']
+      },
+      {
+        id: 'ashdod',
+        name: 'Ashdod Port, Lachish Estuary & Ashkelon',
+        shortName: 'Ashdod / Ashkelon',
+        lat: 31.8150,
+        lng: 34.6405,
+        zoom: 14,
+        scene3d: 'fullcoast',
+        slopePct: 0.72,
+        cliffHeightM: 4.8,
+        aquiferDepthM: 5.2,
+        riskLevel: 'High National Trade & Desalination',
+        color: '#38bdf8',
+        summary: 'Southern coastal plain featuring Israel’s largest cargo port, the Lachish river estuary, and critical seawater desalination & power infrastructure sensitive to storm surge and sand transport shifts.',
+        landmarks: ['Port of Ashdod Breakwater', 'Lachish River Mouth', 'Southern Desalination Plants']
+      }
+    ];
+
+    /***************************************************************************
+     * 3. HIGH-RESOLUTION ISRAELI MEDITERRANEAN COASTLINE GEOMETRY (N -> S)
+     *    Used to render continuous, organic, non-blocky animated water inundation
+     *    including estuaries (Ga'aton, Kishon, Taninim, Alexander, Yarkon, Lachish).
+     ***************************************************************************/
+    // Each vertex: [lat, lng, slopeFactor (meters inland per 1m SLR), isEstuaryMouth]
+    const ISRAEL_COASTLINE_VERTICES = [
+      [33.0940, 35.1042, 18, false], // Rosh HaNikra Cliff
+      [33.0720, 35.1030, 55, false], // Achziv lagoons
+      [33.0520, 35.1012, 70, false],
+      [33.0250, 35.0965, 85, false],
+      [33.0058, 35.0915, 195, true], // Nahariya Ga'aton Estuary (deep inland penetration)
+      [32.9850, 35.0875, 90, false],
+      [32.9550, 35.0815, 110, false],
+      [32.9275, 35.0755, 145, false], // Akko Northern Bay
+      [32.9210, 35.0668, 45, false],  // Old Akko Peninsula tip
+      [32.9175, 35.0765, 180, true], // Akko Harbor & Na'aman Estuary
+      [32.8950, 35.0785, 175, false], // Haifa Bay (Krayot beaches)
+      [32.8620, 35.0680, 185, false],
+      [32.8320, 35.0510, 210, false],
+      [32.8085, 35.0310, 290, true], // Kishon River Estuary & Haifa Port Flats
+      [32.8180, 35.0020, 75, false],  // Haifa Port outer
+      [32.8335, 34.9850, 55, false],  // Bat Galim
+      [32.8280, 34.9555, 35, false],  // Carmel Headland (Cape Carmel)
+      [32.7950, 34.9565, 80, false],  // Dado Beach
+      [32.7480, 34.9480, 110, false],
+      [32.7052, 34.9342, 220, true], // Atlit Salt Pans & Bay
+      [32.6650, 34.9265, 130, false], // Neve Yam / Habonim
+      [32.6350, 34.9210, 145, false], // Dor / Nahsholim
+      [32.6080, 34.9160, 165, true], // Dor Tantura Lagoon
+      [32.5780, 34.9110, 190, false],
+      [32.5535, 34.9050, 260, true], // Ma'agan Michael & Taninim Estuary
+      [32.5250, 34.8965, 150, false], // Jisr az-Zarqa / Aqueduct Beach
+      [32.5015, 34.8890, 115, false], // Caesarea Ancient Harbor
+      [32.4650, 34.8825, 160, true], // Hadera Stream / Power Station
+      [32.4380, 34.8755, 140, false], // Mikhmoret
+      [32.3965, 34.8648, 230, true], // Alexander River Estuary (Beit Yanai)
+      [32.3620, 34.8565, 65, false],  // Netanya North Cliff
+      [32.3285, 34.8480, 42, false],  // Netanya Central Kurkar Cliff
+      [32.2820, 34.8370, 48, false],  // Poleg
+      [32.2150, 34.8180, 52, false],  // Arsuf Cliffs
+      [32.1650, 34.7965, 75, false],  // Herzliya Marina
+      [32.1280, 34.7845, 85, false],  // Tel Baruch
+      [32.0990, 34.7742, 280, true], // Yarkon River Estuary (Tel Aviv North)
+      [32.0805, 34.7662, 115, false], // Tel Aviv Gordon / Frishman Beach
+      [32.0660, 34.7595, 110, false], // Charles Clore Beach
+      [32.0522, 34.7490, 55, false],  // Old Jaffa Port & Hill
+      [32.0180, 34.7380, 95, false],  // Bat Yam Beaches
+      [31.9650, 34.7180, 125, false], // Rishon LeZion Beach
+      [31.9280, 34.6985, 185, true], // Sorek River / Palmachim
+      [31.8520, 34.6615, 175, true], // Lachish River Estuary & Ashdod Port
+      [31.8050, 34.6360, 120, false], // Ashdod Beaches
+      [31.7250, 34.5920, 135, false], // Nitzanim Dunes
+      [31.6680, 34.5520, 95, false],  // Ashkelon Marina
+      [31.6050, 34.5150, 155, true]  // Zikim / Shikma Estuary
+    ];
+
+    // River Estuary Channels (inland coordinates so rising water visibly creeps up rivers!)
+    const ESTUARY_CHANNELS = [
+      {
+        name: 'Ga’aton River (Nahariya)',
+        minSlr: 0.15,
+        path: [
+          [33.0058, 35.0915],
+          [33.0059, 35.0955],
+          [33.0061, 35.0995],
+          [33.0063, 35.1045]
+        ],
+        widthMeters: 55
+      },
+      {
+        name: 'Kishon River & Bay Flats (Haifa)',
+        minSlr: 0.10,
+        path: [
+          [32.8085, 35.0310],
+          [32.8045, 35.0385],
+          [32.7980, 35.0465],
+          [32.7915, 35.0550],
+          [32.7830, 35.0640]
+        ],
+        widthMeters: 165
+      },
+      {
+        name: 'Na’aman River (Akko South)',
+        minSlr: 0.20,
+        path: [
+          [32.9120, 35.0780],
+          [32.9080, 35.0845],
+          [32.9010, 35.0910]
+        ],
+        widthMeters: 85
+      },
+      {
+        name: 'Taninim Stream & Fishponds',
+        minSlr: 0.10,
+        path: [
+          [32.5535, 34.9050],
+          [32.5525, 34.9120],
+          [32.5505, 34.9195],
+          [32.5485, 34.9260]
+        ],
+        widthMeters: 140
+      },
+      {
+        name: 'Alexander River Estuary',
+        minSlr: 0.15,
+        path: [
+          [32.3965, 34.8648],
+          [32.3945, 34.8720],
+          [32.3920, 34.8805]
+        ],
+        widthMeters: 95
+      },
+      {
+        name: 'Yarkon River Flood Corridor (Tel Aviv)',
+        minSlr: 0.10,
+        path: [
+          [32.0990, 34.7742],
+          [32.0975, 34.7815],
+          [32.0965, 34.7895],
+          [32.0982, 34.7985],
+          [32.1010, 34.8080]
+        ],
+        widthMeters: 130
+      },
+      {
+        name: 'Lachish River Estuary (Ashdod)',
+        minSlr: 0.15,
+        path: [
+          [31.8320, 34.6510],
+          [31.8290, 34.6585],
+          [31.8240, 34.6660]
+        ],
+        widthMeters: 95
+      }
+    ];
+
+    // Seminar Prompts
+    const SEMINAR_PROMPTS = [
+      "1. Compound Flooding Dynamics: In Haifa Bay and Nahariya, how does a moderate +0.56m baseline sea level rise transform a 10-year winter rainstorm into a catastrophic urban flood when marine surge blocks river drainage?",
+      "2. Hard Engineering vs. Nature-Based Adaptation: Compare building concrete seawalls in Tel Aviv and Netanya against restoring coastal sand dunes and posidonia seagrass beds. What happens to sandy beaches in front of vertical seawalls as water rises?",
+      "3. Subsurface Saltwater Intrusion: Using the Ghyben-Herzberg cross-section below, why does every +1m of Mediterranean sea level rise push the saltwater wedge up to 40m deeper/inland into Israel’s coastal freshwater aquifer?",
+      "4. Cultural Heritage Triage: Israel's coast hosts dense archaeological heritage (Old Akko, Caesarea Aqueduct, Tel Dor, Atlit). How should planners prioritize which sites receive engineered protection versus digital preservation?",
+      "5. Collective Climate Agency: In the 'Limit the Disaster' calculator, compare 1 student shifting from solo car commuting to Israel Railways vs. an entire 18,000-person campus. How do transport policies structurally lock in or avoid emissions?"
+    ];
+
+    /***************************************************************************
+     * 4. GLOBAL APPLICATION STATE
+     ***************************************************************************/
+    const STATE = {
+      viewMode: '2d', // '2d' | '3d' | 'split' | 'drone'
+      scenarioId: 'ssp245',
+      year: 2100,
+      baseSlrMeters: 0.56,
+      stormSurgeMeters: 0.00,
+      totalWaterMeters: 0.56,
+      selectedWaypointIndex: 3, // Default: Haifa Bay & Kishon Estuary
+      active3DScene: 'haifa',
+      baseMapStyle: 'satellite',
+      showBaselineShore: true,
+      showWaveFoam: true,
+      showBuildings: true,
+      showMitigationComparison: false,
+      isPlayingTimeline: false,
+      timelineTimer: null,
+      transitMode: 'rail', // 'rail' | 'bus' | 'bike' | 'evpool'
+      seminarPromptIndex: 0,
+      wavePhase: 0
+    };
+
+    /***************************************************************************
+     * 5. INITIALIZATION ON WINDOW LOAD
+     ***************************************************************************/
+    let map = null;
+    let baseTileLayers = {};
+    let waypointMarkers = [];
+    let coastalBuildingFootprints = [];
+
+    window.onload = function () {
+      initQuickWaypointsAndList();
+      initLeafletMap();
+      generateCoastalBuildingFootprints();
+      initThreeSimulator();
+      updateSimulationFromScenarioAndYear();
+      updateActionCalculator();
+      startContinuousHydroAnimationLoop();
+
+      window.addEventListener('resize', () => {
+        if (map) map.invalidateSize();
+        resize2DCanvas();
+        resizeThreeSimulator();
+        drawCrossSectionAndCharts();
+      });
+    };
+
+    /***************************************************************************
+     * 6. UI NAVIGATION & TAB SWITCHING
+     ***************************************************************************/
+    function switchLeftTab(tabName) {
+      const tabs = ['hydro', 'action', 'seminar'];
+      tabs.forEach(t => {
+        const panel = document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1));
+        const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (t === tabName) {
+          panel.classList.remove('hidden');
+          btn.className = 'py-2 px-2 rounded-lg text-xs font-display font-semibold flex items-center justify-center gap-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-400/40';
+        } else {
+          panel.classList.add('hidden');
+          btn.className = 'py-2 px-2 rounded-lg text-xs font-display font-semibold flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-white/5 border border-transparent';
+        }
+      });
+    }
+
+    function setViewMode(mode) {
+      STATE.viewMode = mode;
+      const mapWrap = document.getElementById('mapStageWrapper');
+      const threeWrap = document.getElementById('threeStageWrapper');
+      const stage = document.getElementById('stageContainer');
+
+      const modes = [
+        { id: '2d', btn: 'btnView2D' },
+        { id: '3d', btn: 'btnView3D' },
+        { id: 'split', btn: 'btnViewSplit' },
+        { id: 'drone', btn: 'btnViewDrone' }
+      ];
+      modes.forEach(m => {
+        const el = document.getElementById(m.btn);
+        if (m.id === mode) {
+          el.className = 'px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 bg-cyan-500 text-abyss-950 shadow';
+        } else {
+          el.className = 'px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 text-slate-300 hover:text-white hover:bg-white/5';
+        }
+      });
+
+      if (mode === '2d') {
+        stage.className = 'flex-1 grid grid-cols-1 relative overflow-hidden';
+        mapWrap.classList.remove('hidden');
+        threeWrap.classList.add('hidden');
+        threeDroneAutoOrbit = false;
+      } else if (mode === '3d') {
+        stage.className = 'flex-1 grid grid-cols-1 relative overflow-hidden';
+        mapWrap.classList.add('hidden');
+        threeWrap.classList.remove('hidden');
+        threeDroneAutoOrbit = false;
+      } else if (mode === 'split') {
+        stage.className = 'flex-1 grid grid-cols-1 lg:grid-cols-2 relative overflow-hidden';
+        mapWrap.classList.remove('hidden');
+        threeWrap.classList.remove('hidden');
+        threeDroneAutoOrbit = false;
+      } else if (mode === 'drone') {
+        stage.className = 'flex-1 grid grid-cols-1 lg:grid-cols-2 relative overflow-hidden';
+        mapWrap.classList.remove('hidden');
+        threeWrap.classList.remove('hidden');
+        set3DCameraPreset('drone');
+        showToast('🛸 Drone Flyover Mode active: Orbiting 3D flooded coast synced with 2D live map.');
+      }
+
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+        resize2DCanvas();
+        resizeThreeSimulator();
+      }, 60);
+    }
+
+    function toggleBottomDock() {
+      const content = document.getElementById('bottomDockContent');
+      const btn = document.getElementById('btnToggleDock');
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        btn.textContent = 'Minimize Dock ▼';
+        drawCrossSectionAndCharts();
+      } else {
+        content.classList.add('hidden');
+        btn.textContent = 'Expand Cross-Section & IPCC Chart ▲';
+      }
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+        resize2DCanvas();
+        resizeThreeSimulator();
+      }, 100);
+    }
+
+    function showToast(msg, icon = '🌊') {
+      const box = document.getElementById('toastBox');
+      document.getElementById('toastIcon').textContent = icon;
+      document.getElementById('toastMessage').textContent = msg;
+      box.classList.remove('hidden');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => box.classList.add('hidden'), 3600);
+    }
+
+    /***************************************************************************
+     * 7. SCIENTIFIC PROJECTION INTERPOLATION & STATE UPDATES
+     ***************************************************************************/
+    function computeScenarioSlrForYear(scenarioId, year) {
+      const sc = IPCC_SCENARIOS[scenarioId] || IPCC_SCENARIOS.ssp245;
+      const y = Math.max(2026, Math.min(2150, Number(year)));
+      if (y <= 2026) return 0.0;
+      if (y <= 2050) {
+        const t = (y - 2026) / (2050 - 2026);
+        return sc.slr2050 * Math.pow(t, 1.08);
+      } else if (y <= 2100) {
+        const t = (y - 2050) / (2100 - 2050);
+        return sc.slr2050 + (sc.slr2100 - sc.slr2050) * Math.pow(t, 1.18);
+      } else {
+        const t = (y - 2100) / (2150 - 2100);
+        return sc.slr2100 + (sc.slr2150 - sc.slr2100) * Math.pow(t, 1.25);
+      }
+    }
+
+    function onScenarioChange(val) {
+      STATE.scenarioId = val;
+      updateSimulationFromScenarioAndYear();
+    }
+
+    function onYearInput(val) {
+      STATE.year = Number(val);
+      document.getElementById('yearSlider').value = STATE.year;
+      document.getElementById('yearReadout').textContent = STATE.year;
+      if (STATE.scenarioId === 'custom') {
+        // Switch back to SSP2-4.5 if user moves year timeline while in custom mode
+        STATE.scenarioId = 'ssp245';
+        document.getElementById('scenarioSelect').value = 'ssp245';
+      }
+      updateSimulationFromScenarioAndYear();
+    }
+
+    function onDirectSlrInput(val) {
+      STATE.baseSlrMeters = parseFloat(val);
+      STATE.scenarioId = 'custom';
+      document.getElementById('scenarioSelect').value = 'custom';
+      refreshAllOutputs();
+    }
+
+    function setStormSurge(meters, btnEl) {
+      STATE.stormSurgeMeters = Number(meters);
+      document.getElementById('surgeReadout').textContent = `+${STATE.stormSurgeMeters.toFixed(2)} m`;
+      document.querySelectorAll('.surge-btn').forEach(b => {
+        b.className = 'surge-btn px-2 py-1.5 rounded-lg text-[11px] font-medium bg-abyss-950/70 border border-white/10 text-slate-300 hover:border-amber-400/40 text-left';
+      });
+      if (btnEl) {
+        btnEl.className = 'surge-btn active-surge px-2 py-1.5 rounded-lg text-[11px] font-medium bg-cyan-500/25 border border-cyan-400/60 text-white text-left';
+      }
+      refreshAllOutputs();
+    }
+
+    function updateSimulationFromScenarioAndYear() {
+      const sc = IPCC_SCENARIOS[STATE.scenarioId];
+      if (STATE.scenarioId !== 'custom') {
+        STATE.baseSlrMeters = computeScenarioSlrForYear(STATE.scenarioId, STATE.year);
+        document.getElementById('directSlrSlider').value = Math.min(6.0, STATE.baseSlrMeters).toFixed(2);
+      }
+      document.getElementById('scenarioDesc').textContent = sc.desc;
+      document.getElementById('badgeScenarioRate').textContent = `${sc.rateMmYr} mm/yr`;
+
+      // Update contributor budget bars
+      document.getElementById('barThermal').style.width = sc.budget.thermal + '%';
+      document.getElementById('barGlaciers').style.width = sc.budget.glaciers + '%';
+      document.getElementById('barGreenland').style.width = sc.budget.greenland + '%';
+      document.getElementById('barAntarctic').style.width = sc.budget.antarctic + '%';
+      document.getElementById('barLandWater').style.width = sc.budget.land + '%';
+
+      document.getElementById('valThermal').textContent = sc.budget.thermal + '%';
+      document.getElementById('valGlaciers').textContent = sc.budget.glaciers + '%';
+      document.getElementById('valGreenland').textContent = sc.budget.greenland + '%';
+      document.getElementById('valAntarctic').textContent = sc.budget.antarctic + '%';
+
+      refreshAllOutputs();
+    }
+
+    function refreshAllOutputs() {
+      STATE.totalWaterMeters = STATE.baseSlrMeters + STATE.stormSurgeMeters;
+      const wp = COASTAL_WAYPOINTS[STATE.selectedWaypointIndex];
+      const sc = IPCC_SCENARIOS[STATE.scenarioId] || IPCC_SCENARIOS.ssp245;
+
+      // Calculate inland shoreline shift (meters) at selected waypoint using local slope
+      // slopePct = rise/run * 100 -> run = rise / (slopePct / 100)
+      const inlandShiftMeters = (STATE.totalWaterMeters / (wp.slopePct / 100));
+
+      // Update top bar & sliders
+      document.getElementById('slrBaseReadout').textContent = `+${STATE.baseSlrMeters.toFixed(2)} m`;
+      document.getElementById('topTotalWater').textContent = `+${STATE.totalWaterMeters.toFixed(2)} m`;
+      document.getElementById('topShoreShift').textContent = `+${Math.round(inlandShiftMeters)} m inland`;
+
+      // Interpolate CO2 and Temp based on year
+      const yearFrac = (STATE.year - 2026) / (2100 - 2026);
+      const co2Now = Math.round(424 + (sc.co2Ppm2100 - 424) * Math.max(0, Math.min(1.3, yearFrac)));
+      const tempNow = (1.25 + (sc.tempC2100 - 1.25) * Math.max(0, Math.min(1.3, yearFrac))).toFixed(1);
+      document.getElementById('topCO2Ppm').textContent = `${co2Now} ppm (+${tempNow}°C)`;
+
+      // Update 2D HUD
+      document.getElementById('hudSiteName').textContent = wp.shortName;
+      document.getElementById('hudLocalSlope').textContent = `${wp.slopePct.toFixed(2)}% slope`;
+      document.getElementById('hudInlandMeters').textContent = `+${inlandShiftMeters.toFixed(1)} m`;
+
+      // Rescued coastline comparison (SSP5-8.5 vs SSP1-1.9)
+      const rescuedRow = document.getElementById('hudRescuedRow');
+      if (STATE.showMitigationComparison) {
+        rescuedRow.classList.remove('hidden');
+        const unmitSlr = computeScenarioSlrForYear('ssp585', STATE.year) + STATE.stormSurgeMeters;
+        const mitSlr = computeScenarioSlrForYear('ssp119', STATE.year) + STATE.stormSurgeMeters;
+        const savedShift = Math.max(0, (unmitSlr - mitSlr) / (wp.slopePct / 100));
+        document.getElementById('hudRescuedMeters').textContent = `${savedShift.toFixed(1)} m saved`;
+      } else {
+        rescuedRow.classList.add('hidden');
+      }
+
+      // Update 3D water height & building flood colors
+      updateThreeWaterLevel(STATE.totalWaterMeters);
+
+      // Redraw Cross-Section & IPCC Chart
+      drawCrossSectionAndCharts();
+    }
+
+    function toggleTimelinePlay() {
+      STATE.isPlayingTimeline = !STATE.isPlayingTimeline;
+      const icon = document.getElementById('playIcon');
+      const label = document.getElementById('playLabel');
+      if (STATE.isPlayingTimeline) {
+        icon.textContent = '⏸';
+        label.textContent = 'Pause';
+        if (STATE.year >= 2150) STATE.year = 2026;
+        STATE.timelineTimer = setInterval(() => {
+          if (STATE.year < 2150) {
+            onYearInput(STATE.year + 1);
+          } else {
+            toggleTimelinePlay();
+          }
+        }, 90);
+      } else {
+        icon.textContent = '▶';
+        label.textContent = 'Time-Lapse';
+        clearInterval(STATE.timelineTimer);
+      }
+    }
+
+    function triggerFloodWaveReplay() {
+      const targetSlr = Math.max(0.4, STATE.baseSlrMeters);
+      let current = 0.0;
+      clearInterval(window._floodReplayTimer);
+      showToast(`Animating rising Mediterranean tide from 0.00m to +${targetSlr.toFixed(2)}m...`);
+      window._floodReplayTimer = setInterval(() => {
+        current += targetSlr / 38;
+        if (current >= targetSlr) {
+          current = targetSlr;
+          clearInterval(window._floodReplayTimer);
+        }
+        STATE.baseSlrMeters = current;
+        document.getElementById('directSlrSlider').value = current.toFixed(2);
+        refreshAllOutputs();
+      }, 30);
+    }
+
+    /***************************************************************************
+     * 8. WAYPOINT CARDS & QUICK RIBBON INITIALIZATION
+     ***************************************************************************/
+    function initQuickWaypointsAndList() {
+      const quickBar = document.getElementById('quickWaypointBar');
+      const listContainer = document.getElementById('waypointCardsList');
+      quickBar.innerHTML = '';
+      listContainer.innerHTML = '';
+
+      COASTAL_WAYPOINTS.forEach((wp, idx) => {
+        // Quick top ribbon button
+        const qBtn = document.createElement('button');
+        qBtn.id = `qWpBtn_${idx}`;
+        qBtn.onclick = () => selectWaypoint(idx, true);
+        qBtn.className = idx === STATE.selectedWaypointIndex
+          ? 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-cyan-500 text-abyss-950 shrink-0 transition shadow'
+          : 'px-2.5 py-1 rounded-lg text-[11px] font-medium bg-abyss-950/90 text-slate-300 hover:text-white border border-white/10 shrink-0 transition';
+        qBtn.textContent = `${idx + 1}. ${wp.shortName}`;
+        quickBar.appendChild(qBtn);
+
+        // Detailed card in Seminar & Sites tab
+        const card = document.createElement('div');
+        card.id = `wpCard_${idx}`;
+        card.onclick = () => selectWaypoint(idx, true);
+        card.className = 'glass-sub p-2.5 rounded-xl cursor-pointer hover:border-cyan-400/60 transition space-y-1';
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-display font-bold text-white">${idx + 1}. ${wp.name}</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-cyan-300">${wp.slopePct}% slope</span>
+          </div>
+          <p class="text-[11px] text-slate-300 leading-snug">${wp.summary}</p>
+          <div class="flex flex-wrap gap-1 pt-1">
+            ${wp.landmarks.map(l => `<span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-abyss-950 text-slate-300 border border-white/10">${l}</span>`).join('')}
+          </div>
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    function selectWaypoint(index, flyToMap = true) {
+      STATE.selectedWaypointIndex = index;
+      const wp = COASTAL_WAYPOINTS[index];
+
+      // Update Quick Ribbon active state
+      COASTAL_WAYPOINTS.forEach((_, idx) => {
+        const qBtn = document.getElementById(`qWpBtn_${idx}`);
+        if (qBtn) {
+          qBtn.className = idx === index
+            ? 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-cyan-500 text-abyss-950 shrink-0 transition shadow'
+            : 'px-2.5 py-1 rounded-lg text-[11px] font-medium bg-abyss-950/90 text-slate-300 hover:text-white border border-white/10 shrink-0 transition';
+        }
+      });
+
+      document.getElementById('selectedWaypointBadge').textContent =
+        `${wp.name} (${wp.lat.toFixed(3)}°N, ${wp.lng.toFixed(3)}°E)`;
+
+      if (flyToMap && map) {
+        map.flyTo([wp.lat, wp.lng], wp.zoom, { duration: 1.1 });
+      }
+
+      // Also sync 3D district scene
+      if (wp.scene3d && wp.scene3d !== STATE.active3DScene) {
+        document.getElementById('select3DScene').value = wp.scene3d;
+        load3DDistrict(wp.scene3d);
+      }
+
+      refreshAllOutputs();
+    }
+
+    function cycleSeminarPrompt(dir) {
+      STATE.seminarPromptIndex = (STATE.seminarPromptIndex + dir + SEMINAR_PROMPTS.length) % SEMINAR_PROMPTS.length;
+      document.getElementById('seminarPromptText').textContent = SEMINAR_PROMPTS[STATE.seminarPromptIndex];
+    }
+
+    /***************************************************************************
+     * 9. LEAFLET MAP + CONTINUOUS ANIMATED BLUE WATER INUNDATION OVERLAY
+     ***************************************************************************/
+    function initLeafletMap() {
+      const initialWp = COASTAL_WAYPOINTS[STATE.selectedWaypointIndex];
+      map = L.map('leafletMap', {
+        center: [initialWp.lat, initialWp.lng],
+        zoom: 13,
+        zoomControl: false,
+        preferCanvas: true
+      });
+
+      L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+      // Tile Layers: Satellite Hybrid, Street Map, Dark Hydro-Topo
+      const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; IOLR / IPCC AR6'
+      });
+      const cartoLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
+      });
+
+      baseTileLayers.satellite = L.layerGroup([esriSat, cartoLabels]);
+      baseTileLayers.street = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      });
+      baseTileLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      });
+
+      baseTileLayers.satellite.addTo(map);
+
+      // Add Interactive Waypoint Pins
+      COASTAL_WAYPOINTS.forEach((wp, idx) => {
+        const iconHtml = `
+          <div class="waypoint-pin" style="color:${wp.color}">
+            <div class="waypoint-pin-ring"></div>
+            <div class="waypoint-pin-core" style="background:${wp.color}"></div>
+          </div>
+        `;
+        const customIcon = L.divIcon({
+          html: iconHtml,
+          className: '',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+
+        const marker = L.marker([wp.lat, wp.lng], { icon: customIcon }).addTo(map);
+        marker.on('click', () => {
+          selectWaypoint(idx, false);
+          const shiftM = (STATE.totalWaterMeters / (wp.slopePct / 100)).toFixed(1);
+          marker.bindPopup(`
+            <div class="p-1 space-y-1 min-w-[210px]">
+              <div class="font-display font-bold text-xs text-cyan-300">${wp.name}</div>
+              <div class="text-[11px] text-slate-300">${wp.summary}</div>
+              <div class="pt-1 border-t border-white/10 flex justify-between text-[11px] font-mono">
+                <span class="text-slate-400">Inland Flood Shift:</span>
+                <span class="text-amber-300 font-bold">+${shiftM} m</span>
+              </div>
+              <button onclick="setViewMode('split')" class="mt-1.5 w-full py-1 rounded bg-cyan-500/25 border border-cyan-400/50 text-cyan-200 text-[10px] font-semibold">
+                Inspect in Split 2D + 3D View
+              </button>
+            </div>
+          `).openPopup();
+        });
+        waypointMarkers.push(marker);
+      });
+
+      resize2DCanvas();
+      map.on('move zoom viewreset resize', () => {
+        renderContinuousHydroOverlay2D();
+      });
+    }
+
+    function setBaseMap(style) {
+      STATE.baseMapStyle = style;
+      Object.values(baseTileLayers).forEach(layer => map.removeLayer(layer));
+      baseTileLayers[style].addTo(map);
+
+      const btns = { satellite: 'mapBtnSat', street: 'mapBtnStreet', dark: 'mapBtnDark' };
+      Object.keys(btns).forEach(k => {
+        const el = document.getElementById(btns[k]);
+        el.className = k === style
+          ? 'px-2 py-1.5 rounded-lg text-[11px] font-medium bg-cyan-500/25 border border-cyan-400/60 text-white'
+          : 'px-2 py-1.5 rounded-lg text-[11px] font-medium bg-abyss-950 border border-white/10 text-slate-300';
+      });
+    }
+
+    function toggleOverlayOption() {
+      STATE.showBaselineShore = document.getElementById('chkBaselineShore').checked;
+      STATE.showWaveFoam = document.getElementById('chkWaveFoam').checked;
+      STATE.showBuildings = document.getElementById('chkBuildings').checked;
+      STATE.showMitigationComparison = document.getElementById('chkCompareMitigation').checked;
+      refreshAllOutputs();
+    }
+
+    // Generate realistic coastal building footprints around the 12 waypoints
+    function generateCoastalBuildingFootprints() {
+      coastalBuildingFootprints = [];
+      COASTAL_WAYPOINTS.forEach((wp) => {
+        const count = 26;
+        for (let i = 0; i < count; i++) {
+          // Place buildings between 12m and 280m inland (east of shoreline)
+          const distEastMeters = 14 + (i * 9.5) + ((i * 17) % 25);
+          const offsetNorthMeters = ((i % 9) - 4) * 85 + Math.sin(i * 2.1) * 35;
+
+          const dLat = offsetNorthMeters / 111320;
+          const dLng = distEastMeters / (111320 * Math.cos(wp.lat * Math.PI / 180));
+
+          const baseElevationM = distEastMeters * (wp.slopePct / 100);
+          coastalBuildingFootprints.push({
+            lat: wp.lat + dLat,
+            lng: wp.lng + dLng,
+            wMeters: 22 + (i % 3) * 8,
+            hMeters: 16 + (i % 2) * 10,
+            baseElevationM: baseElevationM
+          });
+        }
+      });
+    }
+
+    function resize2DCanvas() {
+      const canvas = document.getElementById('hydroCanvas2D');
+      const wrap = document.getElementById('mapStageWrapper');
+      if (!canvas || !wrap) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = wrap.clientWidth * dpr;
+      canvas.height = wrap.clientHeight * dpr;
+      canvas.style.width = wrap.clientWidth + 'px';
+      canvas.style.height = wrap.clientHeight + 'px';
+    }
+
+    // Helper: Convert meters east at given latitude to longitude delta
+    function metersEastToLng(meters, lat) {
+      return meters / (111320 * Math.cos(lat * Math.PI / 180));
+    }
+
+    // Smooth Catmull-Rom / Quadratic curve path builder on 2D Canvas
+    function traceSmoothScreenPolygon(ctx, screenPts) {
+      if (screenPts.length < 2) return;
+      ctx.moveTo(screenPts[0].x, screenPts[0].y);
+      for (let i = 0; i < screenPts.length - 1; i++) {
+        const p0 = screenPts[i];
+        const p1 = screenPts[i + 1];
+        const midX = (p0.x + p1.x) * 0.5;
+        const midY = (p0.y + p1.y) * 0.5;
+        ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+      }
+      const last = screenPts[screenPts.length - 1];
+      ctx.lineTo(last.x, last.y);
+    }
+
+    /***************************************************************************
+     * 10. CONTINUOUS 60FPS ANIMATED BLUE WATER INUNDATION RENDERER (NO PIXEL BLOCKS!)
+     ***************************************************************************/
+    function renderContinuousHydroOverlay2D() {
+      if (!map || STATE.viewMode === '3d') return;
+      const canvas = document.getElementById('hydroCanvas2D');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = canvas.width / dpr;
+      const height = canvas.height / dpr;
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, width, height);
+
+      const waterM = STATE.totalWaterMeters;
+      const waveOscillationM = STATE.showWaveFoam ? (Math.sin(STATE.wavePhase) * 0.04 + 0.04) : 0;
+      const effectiveWaterM = waterM + waveOscillationM;
+
+      // 1. Compute Baseline 2026 Coastline screen coordinates & Submerged Inland Contour screen coordinates
+      const baselineScreenPts = [];
+      const floodedScreenPts = [];
+      const offshoreWestPts = [];
+
+      for (let i = 0; i < ISRAEL_COASTLINE_VERTICES.length; i++) {
+        const [lat, lng, slopeRunPerMeter, isEstuary] = ISRAEL_COASTLINE_VERTICES[i];
+        const basePt = map.latLngToContainerPoint([lat, lng]);
+        baselineScreenPts.push(basePt);
+
+        // Compute organic inland penetration in meters
+        // Add subtle organic coastal undulation along latitude
+        const harmonic = 1.0 + 0.14 * Math.sin(i * 1.7 + STATE.wavePhase * 0.6);
+        const estuaryBoost = isEstuary ? 1.35 : 1.0;
+        const inlandMeters = effectiveWaterM * slopeRunPerMeter * harmonic * estuaryBoost;
+
+        const floodedLng = lng + metersEastToLng(inlandMeters, lat);
+        const floodPt = map.latLngToContainerPoint([lat, floodedLng]);
+        floodedScreenPts.push(floodPt);
+
+        // Far western Mediterranean Sea boundary (15km west) so the sea + submerged land form one continuous water body
+        const westPt = map.latLngToContainerPoint([lat, lng - 0.18]);
+        offshoreWestPts.push(westPt);
+      }
+
+      // 2. OPTIONAL: Render "Rescued Coastal Zone" (Mitigation Comparison: SSP5-8.5 vs SSP1-1.9)
+      if (STATE.showMitigationComparison) {
+        const unmitSlr = computeScenarioSlrForYear('ssp585', STATE.year) + STATE.stormSurgeMeters;
+        const mitSlr = computeScenarioSlrForYear('ssp119', STATE.year) + STATE.stormSurgeMeters;
+
+        const unmitPts = [];
+        const mitPts = [];
+        for (let i = 0; i < ISRAEL_COASTLINE_VERTICES.length; i++) {
+          const [lat, lng, slopeRun] = ISRAEL_COASTLINE_VERTICES[i];
+          unmitPts.push(map.latLngToContainerPoint([lat, lng + metersEastToLng(unmitSlr * slopeRun, lat)]));
+          mitPts.push(map.latLngToContainerPoint([lat, lng + metersEastToLng(mitSlr * slopeRun, lat)]));
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        traceSmoothScreenPolygon(ctx, unmitPts);
+        for (let i = mitPts.length - 1; i >= 0; i--) {
+          ctx.lineTo(mitPts[i].x, mitPts[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.38)';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = '#34d399';
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 3. RENDER CONTINUOUS BLUE WATER BODY (Mediterranean Sea advancing smoothly over the coast)
+      if (effectiveWaterM > 0.005) {
+        ctx.save();
+        ctx.beginPath();
+        // Trace the newly submerged inland shoreline from North to South using smooth curves
+        traceSmoothScreenPolygon(ctx, floodedScreenPts);
+        // Close back through the baseline / offshore Mediterranean from South to North
+        for (let i = offshoreWestPts.length - 1; i >= 0; i--) {
+          ctx.lineTo(offshoreWestPts[i].x, offshoreWestPts[i].y);
+        }
+        ctx.closePath();
+
+        // Create a rich bathymetric blue gradient from offshore to the advancing shoreline
+        const grad = ctx.createLinearGradient(0, 0, width * 0.78, 0);
+        grad.addColorStop(0.0, 'rgba(7, 42, 71, 0.42)');
+        grad.addColorStop(0.45, 'rgba(13, 92, 145, 0.56)');
+        grad.addColorStop(0.80, 'rgba(28, 163, 236, 0.68)');
+        grad.addColorStop(1.0, 'rgba(90, 210, 244, 0.76)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Also highlight the NEWLY SUBMERGED INLAND STRIP (between 2026 baseline and current shoreline)
+        ctx.beginPath();
+        traceSmoothScreenPolygon(ctx, floodedScreenPts);
+        for (let i = baselineScreenPts.length - 1; i >= 0; i--) {
+          ctx.lineTo(baselineScreenPts[i].x, baselineScreenPts[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(14, 165, 233, 0.58)';
+        ctx.fill();
+        ctx.restore();
+
+        // 4. RENDER CONTINUOUS ESTUARY & RIVER CHANNEL INUNDATION (Kishon, Yarkon, Ga'aton, Taninim, etc.)
+        ESTUARY_CHANNELS.forEach(est => {
+          if (effectiveWaterM >= est.minSlr) {
+            const penetrationFraction = Math.min(1.0, (effectiveWaterM - est.minSlr) / 2.2 + 0.25);
+            const screenPath = est.path.map(coord => map.latLngToContainerPoint(coord));
+
+            // Calculate pixel width based on current map zoom
+            const pA = map.latLngToContainerPoint(est.path[0]);
+            const pB = map.latLngToContainerPoint([est.path[0][0], est.path[0][1] + metersEastToLng(est.widthMeters * (1 + effectiveWaterM * 0.45), est.path[0][0])]);
+            const pxWidth = Math.max(4, Math.hypot(pB.x - pA.x, pB.y - pA.y));
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(screenPath[0].x, screenPath[0].y);
+            const maxIdx = Math.max(1, Math.ceil((screenPath.length - 1) * penetrationFraction));
+            for (let i = 1; i <= maxIdx; i++) {
+              ctx.lineTo(screenPath[i].x, screenPath[i].y);
+            }
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // Outer translucent river floodplains
+            ctx.lineWidth = pxWidth * 1.45;
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.42)';
+            ctx.stroke();
+
+            // Inner deep river channel water
+            ctx.lineWidth = pxWidth * 0.85;
+            ctx.strokeStyle = 'rgba(14, 165, 233, 0.78)';
+            ctx.stroke();
+            ctx.restore();
+          }
+        });
+
+        // 5. ANIMATED WAVE CRESTS & FOAM LINE ALONG THE MOVING SHORELINE
+        if (STATE.showWaveFoam) {
+          ctx.save();
+          // Outer soft cyan glow along the active flood edge
+          ctx.beginPath();
+          traceSmoothScreenPolygon(ctx, floodedScreenPts);
+          ctx.lineWidth = 6;
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+          ctx.stroke();
+
+          // Animated parallel incoming wave crests just west of the shoreline
+          for (let w = 1; w <= 2; w++) {
+            const waveOffsetPx = ((STATE.wavePhase * 12 + w * 18) % 36);
+            const alpha = (1 - waveOffsetPx / 36) * 0.48;
+            ctx.beginPath();
+            for (let i = 0; i < floodedScreenPts.length; i++) {
+              const pt = floodedScreenPts[i];
+              if (i === 0) ctx.moveTo(pt.x - waveOffsetPx, pt.y);
+              else ctx.lineTo(pt.x - waveOffsetPx, pt.y);
+            }
+            ctx.lineWidth = 1.6;
+            ctx.strokeStyle = `rgba(186, 230, 253, ${alpha.toFixed(2)})`;
+            ctx.stroke();
+          }
+
+          // Bright white/cyan animated shoreline foam line right at the water's inland edge
+          ctx.beginPath();
+          traceSmoothScreenPolygon(ctx, floodedScreenPts);
+          ctx.lineWidth = 2.2;
+          ctx.strokeStyle = 'rgba(240, 249, 255, 0.92)';
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // 6. RENDER SUBMERGED BUILDING FOOTPRINTS WHEN ZOOMED IN
+      if (STATE.showBuildings && map.getZoom() >= 13) {
+        coastalBuildingFootprints.forEach(b => {
+          const isSubmerged = effectiveWaterM > b.baseElevationM;
+          if (!isSubmerged && map.getZoom() < 14) return;
+
+          const centerPt = map.latLngToContainerPoint([b.lat, b.lng]);
+          if (centerPt.x < -20 || centerPt.x > width + 20 || centerPt.y < -20 || centerPt.y > height + 20) return;
+
+          const edgePt = map.latLngToContainerPoint([b.lat, b.lng + metersEastToLng(b.wMeters, b.lat)]);
+          const pxW = Math.max(4, Math.abs(edgePt.x - centerPt.x));
+          const pxH = Math.max(4, pxW * (b.hMeters / b.wMeters));
+
+          ctx.save();
+          if (isSubmerged) {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.55)';
+            ctx.strokeStyle = '#fda4af';
+            ctx.lineWidth = 1.4;
+          } else {
+            ctx.fillStyle = 'rgba(148, 163, 184, 0.25)';
+            ctx.strokeStyle = 'rgba(226, 232, 240, 0.45)';
+            ctx.lineWidth = 0.8;
+          }
+          ctx.fillRect(centerPt.x - pxW / 2, centerPt.y - pxH / 2, pxW, pxH);
+          ctx.strokeRect(centerPt.x - pxW / 2, centerPt.y - pxH / 2, pxW, pxH);
+          ctx.restore();
+        });
+      }
+
+      // 7. RENDER 2026 BASELINE COASTLINE DASHED REFERENCE LINE + SHORELINE SHIFT VECTOR
+      if (STATE.showBaselineShore) {
+        ctx.save();
+        ctx.beginPath();
+        traceSmoothScreenPolygon(ctx, baselineScreenPts);
+        ctx.setLineDash([6, 5]);
+        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.88)';
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Draw Shoreline Shift Vector at the currently selected waypoint
+      const wp = COASTAL_WAYPOINTS[STATE.selectedWaypointIndex];
+      const wpBasePt = map.latLngToContainerPoint([wp.lat, wp.lng]);
+      const wpShiftMeters = effectiveWaterM / (wp.slopePct / 100);
+      const wpFloodPt = map.latLngToContainerPoint([wp.lat, wp.lng + metersEastToLng(wpShiftMeters, wp.lat)]);
+
+      if (Math.abs(wpFloodPt.x - wpBasePt.x) > 6) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(wpBasePt.x, wpBasePt.y);
+        ctx.lineTo(wpFloodPt.x, wpFloodPt.y);
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.stroke();
+
+        // Label tag
+        ctx.fillStyle = 'rgba(7, 18, 36, 0.9)';
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 1;
+        const labelText = `+${Math.round(wpShiftMeters)}m inland`;
+        ctx.font = 'bold 11px "JetBrains Mono", monospace';
+        const tw = ctx.measureText(labelText).width + 12;
+        ctx.fillRect(wpFloodPt.x + 8, wpFloodPt.y - 10, tw, 20);
+        ctx.strokeRect(wpFloodPt.x + 8, wpFloodPt.y - 10, tw, 20);
+        ctx.fillStyle = '#fde68a';
+        ctx.fillText(labelText, wpFloodPt.x + 14, wpFloodPt.y + 4);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    /***************************************************************************
+     * 11. 3D INTERACTIVE COASTAL & URBAN FLOOD SIMULATOR (THREE.JS WEBGL)
+     ***************************************************************************/
+    let threeScene, threeCamera, threeRenderer;
+    let threeOceanMesh, threeOceanGeo, threeFoamRibbon;
+    let threeBuildings = [];
+    let threeTerrainGroup;
+    let threeCameraSpherical = { radius: 145, theta: -0.55, phi: 1.05, targetX: 10, targetY: 2, targetZ: 0 };
+    let threeDroneAutoOrbit = false;
+
+    function initThreeSimulator() {
+      const canvas = document.getElementById('threeCanvas');
+      const wrap = document.getElementById('threeStageWrapper');
+
+      threeScene = new THREE.Scene();
+      threeScene.background = new THREE.Color(0x040d1c);
+      threeScene.fog = new THREE.FogExp2(0x040d1c, 0.0024);
+
+      threeCamera = new THREE.PerspectiveCamera(45, Math.max(1, wrap.clientWidth) / Math.max(1, wrap.clientHeight), 1, 1200);
+      updateThreeCameraPosition();
+
+      threeRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      threeRenderer.setSize(Math.max(300, wrap.clientWidth), Math.max(300, wrap.clientHeight));
+
+      // Lighting
+      const ambient = new THREE.AmbientLight(0x93c5fd, 0.65);
+      threeScene.add(ambient);
+
+      const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.15);
+      sunLight.position.set(-120, 160, 80);
+      threeScene.add(sunLight);
+
+      const fillLight = new THREE.DirectionalLight(0x22d3ee, 0.4);
+      fillLight.position.set(100, 60, -90);
+      threeScene.add(fillLight);
+
+      threeTerrainGroup = new THREE.Group();
+      threeScene.add(threeTerrainGroup);
+
+      // Create Animated Multi-Segmented 3D Mediterranean Ocean Mesh
+      threeOceanGeo = new THREE.PlaneGeometry(340, 320, 72, 72);
+      threeOceanGeo.rotateX(-Math.PI / 2);
+      const oceanMat = new THREE.MeshPhongMaterial({
+        color: 0x0ea5e9,
+        emissive: 0x062c49,
+        specular: 0xbae6fd,
+        shininess: 85,
+        transparent: true,
+        opacity: 0.80,
+        side: THREE.DoubleSide
+      });
+      threeOceanMesh = new THREE.Mesh(threeOceanGeo, oceanMat);
+      threeScene.add(threeOceanMesh);
+
+      // Shoreline Foam Intersection Ribbon
+      const foamGeo = new THREE.PlaneGeometry(3.2, 320, 1, 64);
+      foamGeo.rotateX(-Math.PI / 2);
+      const foamMat = new THREE.MeshBasicMaterial({
+        color: 0xe0f2fe,
+        transparent: true,
+        opacity: 0.82
+      });
+      threeFoamRibbon = new THREE.Mesh(foamGeo, foamMat);
+      threeScene.add(threeFoamRibbon);
+
+      // Mouse & Touch Orbit / Zoom Controls
+      let isDragging = false;
+      let prevX = 0, prevY = 0;
+      canvas.addEventListener('mousedown', e => {
+        isDragging = true;
+        threeDroneAutoOrbit = false;
+        prevX = e.clientX;
+        prevY = e.clientY;
+      });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+      window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const dx = e.clientX - prevX;
+        const dy = e.clientY - prevY;
+        prevX = e.clientX;
+        prevY = e.clientY;
+        threeCameraSpherical.theta -= dx * 0.007;
+        threeCameraSpherical.phi = Math.max(0.22, Math.min(1.48, threeCameraSpherical.phi - dy * 0.006));
+        updateThreeCameraPosition();
+      });
+      canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        threeCameraSpherical.radius = Math.max(40, Math.min(340, threeCameraSpherical.radius + e.deltaY * 0.08));
+        updateThreeCameraPosition();
+      }, { passive: false });
+
+      // Touch support
+      canvas.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+          isDragging = true;
+          prevX = e.touches[0].clientX;
+          prevY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+      canvas.addEventListener('touchend', () => { isDragging = false; }, { passive: true });
+      canvas.addEventListener('touchmove', e => {
+        if (!isDragging || e.touches.length !== 1) return;
+        const dx = e.touches[0].clientX - prevX;
+        const dy = e.touches[0].clientY - prevY;
+        prevX = e.touches[0].clientX;
+        prevY = e.touches[0].clientY;
+        threeCameraSpherical.theta -= dx * 0.007;
+        threeCameraSpherical.phi = Math.max(0.22, Math.min(1.48, threeCameraSpherical.phi - dy * 0.006));
+        updateThreeCameraPosition();
+      }, { passive: true });
+
+      // Load initial 3D District (Haifa Bay & Kishon Estuary)
+      load3DDistrict('haifa');
+    }
+
+    function updateThreeCameraPosition() {
+      if (!threeCamera) return;
+      const { radius, theta, phi, targetX, targetY, targetZ } = threeCameraSpherical;
+      threeCamera.position.x = targetX + radius * Math.sin(phi) * Math.cos(theta);
+      threeCamera.position.y = targetY + radius * Math.cos(phi);
+      threeCamera.position.z = targetZ + radius * Math.sin(phi) * Math.sin(theta);
+      threeCamera.lookAt(targetX, targetY, targetZ);
+    }
+
+    function set3DCameraPreset(preset) {
+      threeDroneAutoOrbit = false;
+      if (preset === 'aerial') {
+        threeCameraSpherical = { radius: 165, theta: -0.65, phi: 0.92, targetX: 18, targetY: 2, targetZ: 0 };
+      } else if (preset === 'seawall') {
+        threeCameraSpherical = { radius: 58, theta: -0.25, phi: 1.38, targetX: 8, targetY: 2.5, targetZ: 12 };
+      } else if (preset === 'harbor') {
+        threeCameraSpherical = { radius: 85, theta: 0.45, phi: 1.15, targetX: 14, targetY: 2, targetZ: -15 };
+      } else if (preset === 'drone') {
+        threeCameraSpherical = { radius: 125, theta: -0.4, phi: 1.08, targetX: 15, targetY: 3, targetZ: 0 };
+        threeDroneAutoOrbit = true;
+      }
+      updateThreeCameraPosition();
+    }
+
+    function resizeThreeSimulator() {
+      const wrap = document.getElementById('threeStageWrapper');
+      if (!threeRenderer || !wrap || wrap.classList.contains('hidden')) return;
+      const w = Math.max(300, wrap.clientWidth);
+      const h = Math.max(300, wrap.clientHeight);
+      threeCamera.aspect = w / h;
+      threeCamera.updateProjectionMatrix();
+      threeRenderer.setSize(w, h);
+    }
+
+    // Terrain Elevation Function for the 6 distinct 3D Coastal Districts
+    // Note: x < 0 is offshore Mediterranean Sea; x = 0 is 2026 shoreline; x > 0 is inland east
+    function getDistrictTerrainElevation(sceneType, x, z) {
+      if (x < 0) {
+        return x * 0.08; // Seafloor slope
+      }
+      if (sceneType === 'haifa') {
+        // Kishon River Estuary trough around z = -15..15, Mount Carmel rising sharply for z > 45
+        const kishonRiverChannel = Math.exp(-Math.pow(z + 8, 2) / 320) * 2.8;
+        const carmelRise = z > 35 ? Math.pow((z - 35) * 0.14, 1.65) : 0;
+        const baseSlope = x * 0.045;
+        return Math.max(-1.2, baseSlope - kishonRiverChannel + carmelRise);
+      } else if (sceneType === 'akko') {
+        // Old Akko peninsula jutting out at z in [-35, 15], low tombolo neck at x in [15, 45]
+        const isPeninsula = (z > -38 && z < 12 && x < 28);
+        const tomboloDip = (x >= 25 && x <= 55) ? -1.1 : 0;
+        return isPeninsula ? 2.4 + Math.sin(x * 0.1) * 0.4 : Math.max(0.2, x * 0.055 + tomboloDip);
+      } else if (sceneType === 'dor') {
+        // Tantura lagoons & offshore kurkar tombolo islets + Roman aqueduct beach
+        const lagoonTrough = (x > 4 && x < 28) ? -1.15 * Math.sin((x - 4) / 24 * Math.PI) : 0;
+        return Math.max(-0.8, x * 0.052 + lagoonTrough);
+      } else if (sceneType === 'telaviv') {
+        // Yarkon river flood corridor at z < -25, beachfront promenade & Old Jaffa hill at z > 55
+        const yarkonChannel = Math.exp(-Math.pow(z + 42, 2) / 260) * 3.1;
+        const jaffaHill = z > 55 ? Math.pow((z - 55) * 0.12, 1.5) : 0;
+        return Math.max(-1.2, x * 0.062 - yarkonChannel + jaffaHill);
+      } else if (sceneType === 'nahariya') {
+        // Ga'aton River channel right down the middle (z = 0)
+        const gaatonChannel = Math.exp(-Math.pow(z, 2) / 180) * 2.5;
+        return Math.max(-0.9, x * 0.048 - gaatonChannel);
+      } else {
+        // Full Israeli Coastline overview (North z < 0 to South z > 0)
+        const carmelPromontory = Math.exp(-Math.pow(z + 45, 2) / 380) * 9.5;
+        const sharonCliff = (z > -15 && z < 35 && x > 6) ? 3.5 : 0;
+        return x * 0.065 + carmelPromontory + sharonCliff;
+      }
+    }
+
+    function load3DDistrict(sceneType) {
+      STATE.active3DScene = sceneType;
+      if (!threeTerrainGroup) return;
+
+      // Clear previous terrain & buildings
+      while (threeTerrainGroup.children.length > 0) {
+        const obj = threeTerrainGroup.children[0];
+        threeTerrainGroup.remove(obj);
+      }
+      threeBuildings = [];
+
+      // 1. Build 3D Coastal Terrain Mesh with Vertex Colors (Sandy Beach -> Kurkar/Grass -> Urban/Carmel)
+      const terrainGeo = new THREE.PlaneGeometry(240, 260, 96, 96);
+      terrainGeo.rotateX(-Math.PI / 2);
+      const posAttr = terrainGeo.attributes.position;
+      const colors = [];
+
+      for (let i = 0; i < posAttr.count; i++) {
+        const vx = posAttr.getX(i) + 35; // shift so shoreline x=0 is slightly west of center
+        const vz = posAttr.getZ(i);
+        posAttr.setX(i, vx);
+
+        const elevY = getDistrictTerrainElevation(sceneType, vx, vz);
+        posAttr.setY(i, elevY);
+
+        // Color based on elevation
+        const c = new THREE.Color();
+        if (elevY < 0.0) {
+          c.setHex(0x082f49); // Submerged seabed
+        } else if (elevY < 1.15) {
+          c.setHex(0xe2c792); // Golden Mediterranean beach sand
+        } else if (elevY < 4.5) {
+          c.setHex(0x334155); // Coastal urban plain
+        } else if (elevY < 12) {
+          c.setHex(0x3f6212); // Coastal ridge / vegetation
+        } else {
+          c.setHex(0x475569); // Upper Mount Carmel / cliff
+        }
+        colors.push(c.r, c.g, c.b);
+      }
+
+      terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      terrainGeo.computeVertexNormals();
+
+      const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+      const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+      threeTerrainGroup.add(terrainMesh);
+
+      // 2. Add District-Specific Piers, Seawalls, Aqueducts & 3D Urban Buildings
+      const buildingCount = 68;
+      for (let i = 0; i < buildingCount; i++) {
+        const bx = 6 + (i % 11) * 9.5 + ((i * 7) % 6);
+        const bz = -105 + Math.floor(i / 11) * 36 + ((i * 13) % 18);
+        const groundY = getDistrictTerrainElevation(sceneType, bx, bz);
+
+        // Skip placing buildings right inside river channels
+        if (groundY < 0.15) continue;
+
+        let bw = 4.2 + (i % 3) * 1.6;
+        let bd = 4.2 + (i % 2) * 2.0;
+        let bh = 4.5 + ((i * 19) % 18);
+
+        if (sceneType === 'telaviv' && bx < 26 && bz > -20) {
+          bh = 16 + (i % 5) * 6; // Tel Aviv beachfront hotel towers
+        } else if (sceneType === 'akko') {
+          bh = 4.0 + (i % 3) * 2.2; // Historic stone buildings
+        }
+
+        const bGeo = new THREE.BoxGeometry(bw, bh, bd);
+        const bMat = new THREE.MeshPhongMaterial({
+          color: sceneType === 'akko' ? 0xd6d3d1 : 0x94a3b8,
+          emissive: 0x000000
+        });
+        const bMesh = new THREE.Mesh(bGeo, bMat);
+        bMesh.position.set(bx, groundY + bh / 2, bz);
+        threeTerrainGroup.add(bMesh);
+
+        threeBuildings.push({
+          mesh: bMesh,
+          baseElevationM: groundY * 0.85, // Real-world meter mapping
+          height: bh,
+          defaultColor: sceneType === 'akko' ? 0xd6d3d1 : 0x94a3b8
+        });
+      }
+
+      // Add offshore Kurkar Islets for Dor or Port Breakwaters for Haifa
+      if (sceneType === 'dor') {
+        for (let k = -80; k <= 60; k += 35) {
+          const isletGeo = new THREE.CylinderGeometry(5, 9, 1.6, 12);
+          const isletMat = new THREE.MeshLambertMaterial({ color: 0xd6b87c });
+          const islet = new THREE.Mesh(isletGeo, isletMat);
+          islet.position.set(-14, 0.5, k);
+          threeTerrainGroup.add(islet);
+        }
+      } else if (sceneType === 'haifa') {
+        // Container Port Pier jutting into Haifa Bay
+        const pierGeo = new THREE.BoxGeometry(36, 1.5, 14);
+        const pierMat = new THREE.MeshLambertMaterial({ color: 0x64748b });
+        const pier = new THREE.Mesh(pierGeo, pierMat);
+        pier.position.set(-6, 0.75, -25);
+        threeTerrainGroup.add(pier);
+      }
+
+      updateThreeWaterLevel(STATE.totalWaterMeters);
+    }
+
+    // Scale factor between real-world SLR meters and 3D vertical visualization units
+    const THREE_VERTICAL_SCALE = 1.18;
+
+    function updateThreeWaterLevel(totalWaterMeters) {
+      if (!threeOceanMesh) return;
+      const visualWaterY = totalWaterMeters * THREE_VERTICAL_SCALE;
+      threeOceanMesh.position.y = visualWaterY;
+
+      // Move the shoreline foam ribbon inland along the slope as sea level rises!
+      if (threeFoamRibbon) {
+        const inlandX = totalWaterMeters / 0.055;
+        threeFoamRibbon.position.set(inlandX, visualWaterY + 0.08, 0);
+      }
+
+      // Highlight flooded 3D buildings whose base elevation is below totalWaterMeters
+      let floodedCount = 0;
+      threeBuildings.forEach(b => {
+        if (totalWaterMeters > b.baseElevationM) {
+          floodedCount++;
+          b.mesh.material.color.setHex(0xfda4af);
+          b.mesh.material.emissive.setHex(0x991b1b);
+        } else {
+          b.mesh.material.color.setHex(b.defaultColor);
+          b.mesh.material.emissive.setHex(0x000000);
+        }
+      });
+
+      const countEl = document.getElementById('threeFloodedCount');
+      const depthEl = document.getElementById('threeMaxDepth');
+      if (countEl) countEl.textContent = `${floodedCount} / ${threeBuildings.length}`;
+      if (depthEl) depthEl.textContent = `${totalWaterMeters.toFixed(2)} m`;
+    }
+
+    /***************************************************************************
+     * 12. MASTER 60FPS ANIMATION LOOP (2D WATER WAVES + 3D OCEAN SWELLS)
+     ***************************************************************************/
+    function startContinuousHydroAnimationLoop() {
+      function animate() {
+        requestAnimationFrame(animate);
+        STATE.wavePhase += 0.045;
+
+        // 1. Update 2D Continuous Water & Foam Canvas
+        if (STATE.viewMode !== '3d') {
+          renderContinuousHydroOverlay2D();
+        }
+
+        // 2. Update 3D Ocean Waves & WebGL Render
+        if (STATE.viewMode !== '2d' && threeRenderer && threeScene && threeCamera) {
+          if (threeDroneAutoOrbit) {
+            threeCameraSpherical.theta += 0.0035;
+            updateThreeCameraPosition();
+          }
+
+          // Animate 3D Ocean Vertex Waves
+          if (threeOceanGeo) {
+            const pos = threeOceanGeo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+              const vx = pos.getX(i);
+              const vz = pos.getZ(i);
+              const swell = Math.sin(vx * 0.14 - STATE.wavePhase * 1.4) * 0.22
+                          + Math.cos(vz * 0.11 + STATE.wavePhase * 0.9) * 0.14;
+              pos.setY(i, swell);
+            }
+            pos.needsUpdate = true;
+            threeOceanGeo.computeVertexNormals();
+          }
+
+          threeRenderer.render(threeScene, threeCamera);
+        }
+      }
+      animate();
+    }
+
+    /***************************************************************************
+     * 13. LIVE 2D COASTAL AQUIFER CROSS-SECTION & IPCC AR6 CHART RENDERER
+     ***************************************************************************/
+    function drawCrossSectionAndCharts() {
+      drawCoastalAquiferCrossSection();
+      drawIpccMultiCurveChart();
+    }
+
+    function drawCoastalAquiferCrossSection() {
+      const canvas = document.getElementById('crossSectionCanvas');
+      if (!canvas) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width < 10 || rect.height < 10) return;
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const w = rect.width;
+      const h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const wp = COASTAL_WAYPOINTS[STATE.selectedWaypointIndex];
+      const slr = STATE.baseSlrMeters;
+      const surge = STATE.stormSurgeMeters;
+      const totalW = STATE.totalWaterMeters;
+
+      // Cross-section geometry: Left 35% is Sea, Right 65% is Coastal Land + Subsurface Aquifer
+      const shoreBaseX = w * 0.34;
+      const baseSeaY = h * 0.56;
+      const meterScaleY = 9.5; // pixels per vertical meter
+      const currentWaterY = baseSeaY - totalW * meterScaleY;
+
+      // Inland horizontal shift in pixels
+      const shiftPixels = Math.min(w * 0.48, (totalW / (wp.slopePct / 100)) * 0.38);
+      const activeShoreX = shoreBaseX + shiftPixels;
+
+      // 1. Draw Subsurface Freshwater Aquifer & Ghyben-Herzberg Saltwater Intrusion Wedge
+      ctx.fillStyle = '#0f2942';
+      ctx.fillRect(0, baseSeaY, w, h - baseSeaY);
+
+      // Ghyben-Herzberg Saltwater Wedge (pushes inland 40x for every 1m SLR!)
+      const wedgeInlandX = shoreBaseX + 45 + totalW * 34;
+      ctx.beginPath();
+      ctx.moveTo(0, baseSeaY);
+      ctx.lineTo(activeShoreX, currentWaterY);
+      ctx.quadraticCurveTo(shoreBaseX + shiftPixels + 25, h * 0.82, wedgeInlandX, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      const saltGrad = ctx.createLinearGradient(0, baseSeaY, wedgeInlandX, h);
+      saltGrad.addColorStop(0, 'rgba(14, 165, 233, 0.65)');
+      saltGrad.addColorStop(1, 'rgba(239, 68, 68, 0.48)');
+      ctx.fillStyle = saltGrad;
+      ctx.fill();
+
+      // 2. Draw Topographic Land Profile (Beach -> Slope/Cliff -> Coastal Buildings)
+      const cliffRisePx = Math.min(h * 0.42, wp.cliffHeightM * 1.45);
+      ctx.beginPath();
+      ctx.moveTo(0, h * 0.88);
+      ctx.lineTo(shoreBaseX, baseSeaY);
+      ctx.quadraticCurveTo(shoreBaseX + (w - shoreBaseX) * 0.35, baseSeaY - cliffRisePx * 0.55, w, baseSeaY - cliffRisePx);
+      ctx.lineTo(w, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.72)';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#94a3b8';
+      ctx.stroke();
+
+      // Re-draw Saltwater Intrusion Wedge outline on top of subsurface
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(activeShoreX, currentWaterY);
+      ctx.quadraticCurveTo(shoreBaseX + shiftPixels + 25, h * 0.82, wedgeInlandX, h);
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = '#f87171';
+      ctx.stroke();
+      ctx.restore();
+
+      // 3. Draw Rising Mediterranean Sea Water Plane
+      ctx.beginPath();
+      ctx.moveTo(0, currentWaterY);
+      ctx.lineTo(activeShoreX, currentWaterY);
+      ctx.lineTo(shoreBaseX, baseSeaY);
+      ctx.lineTo(0, h * 0.88);
+      ctx.closePath();
+      const seaGrad = ctx.createLinearGradient(0, currentWaterY, 0, h * 0.88);
+      seaGrad.addColorStop(0, 'rgba(34, 211, 238, 0.82)');
+      seaGrad.addColorStop(1, 'rgba(7, 42, 71, 0.92)');
+      ctx.fillStyle = seaGrad;
+      ctx.fill();
+
+      // Baseline 2026 Sea Level reference dashed line
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, baseSeaY);
+      ctx.lineTo(shoreBaseX + 30, baseSeaY);
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.stroke();
+      ctx.restore();
+
+      // Labels
+      ctx.font = '600 10px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#67e8f9';
+      ctx.fillText(`Total Sea Level: +${totalW.toFixed(2)}m (SLR +${slr.toFixed(2)}m | Surge +${surge.toFixed(2)}m)`, 8, 14);
+      ctx.fillStyle = '#fca5a5';
+      ctx.fillText(`Ghyben-Herzberg Saltwater Wedge → +${Math.round(totalW * 40)}m Aquifer Intrusion`, 8, h - 8);
+      ctx.fillStyle = '#fde68a';
+      ctx.fillText(`${wp.shortName} (${wp.slopePct}% slope)`, w - 165, 14);
+    }
+
+    function drawIpccMultiCurveChart() {
+      const canvas = document.getElementById('ipccChartCanvas');
+      if (!canvas) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width < 10 || rect.height < 10) return;
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const w = rect.width;
+      const h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const padL = 34, padR = 14, padT = 18, padB = 20;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+      const maxY = 1.8; // meters
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+      ctx.lineWidth = 1;
+      [0, 0.5, 1.0, 1.5].forEach(val => {
+        const y = padT + plotH - (val / maxY) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '9px "JetBrains Mono", monospace';
+        ctx.fillText(`${val.toFixed(1)}m`, 4, y + 3);
+      });
+
+      // Year labels
+      [2026, 2050, 2100, 2150].forEach(yr => {
+        const x = padL + ((yr - 2026) / (2150 - 2026)) * plotW;
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '9px "JetBrains Mono", monospace';
+        ctx.fillText(yr, x - 12, h - 5);
+      });
+
+      // Draw IPCC Curves
+      const curves = ['ssp119', 'ssp245', 'ssp585', 'iolr_plan'];
+      curves.forEach(cid => {
+        const sc = IPCC_SCENARIOS[cid];
+        ctx.beginPath();
+        for (let yr = 2026; yr <= 2150; yr += 4) {
+          const val = Math.min(maxY, computeScenarioSlrForYear(cid, yr));
+          const x = padL + ((yr - 2026) / (2150 - 2026)) * plotW;
+          const y = padT + plotH - (val / maxY) * plotH;
+          if (yr === 2026) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.lineWidth = (cid === STATE.scenarioId) ? 2.6 : 1.4;
+        ctx.strokeStyle = sc.color;
+        ctx.stroke();
+      });
+
+      // Vertical marker for current Year
+      const curX = padL + ((STATE.year - 2026) / (2150 - 2026)) * plotW;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(curX, padT);
+      ctx.lineTo(curX, padT + plotH);
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.font = '600 10px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText('IPCC AR6 Trajectories (2026–2150)', padL, 12);
+    }
+
+    /***************************************************************************
+     * 14. THE "LIMIT THE DISASTER" CLIMATE ACTION & SUSTAINABILITY CALCULATOR
+     ***************************************************************************/
+    const TRANSIT_FACTORS_KG_KM = {
+      car: 0.167,
+      rail: 0.035,
+      bus: 0.104,
+      bike: 0.000,
+      evpool: 0.042
+    };
+
+    function setTransitMode(mode, btnEl) {
+      STATE.transitMode = mode;
+      document.querySelectorAll('.transit-btn').forEach(b => {
+        b.className = 'transit-btn px-1.5 py-1.5 rounded-lg text-[10px] font-semibold bg-abyss-950 border border-white/10 text-slate-300 text-center';
+      });
+      if (btnEl) {
+        btnEl.className = 'transit-btn px-1.5 py-1.5 rounded-lg text-[10px] font-semibold bg-emerald-500/25 border border-emerald-400 text-white text-center';
+      }
+      updateActionCalculator();
+    }
+
+    function updateActionCalculator() {
+      const participants = Number(document.getElementById('actionScaleSelect').value || 35);
+      const commuteKm = Number(document.getElementById('sliderCommuteKm').value || 35);
+      const commuteDays = Number(document.getElementById('sliderCommuteDays').value || 4);
+      const solarPct = Number(document.getElementById('sliderSolarPct').value || 65);
+      const dietDays = Number(document.getElementById('sliderDietDays').value || 5);
+
+      document.getElementById('valCommuteKm').textContent = `${commuteKm} km`;
+      document.getElementById('valCommuteDays').textContent = `${commuteDays} days/wk`;
+      document.getElementById('commuteKmLabel').textContent = `${commuteKm} km/day · ${commuteDays} d/wk`;
+      document.getElementById('valSolarPct').textContent = `${solarPct}%`;
+      document.getElementById('valDietDays').textContent = `${dietDays} days/wk`;
+
+      // 1. Annual Transport CO2 Saved per person (kg/yr, 48 working weeks)
+      const savingsPerKm = Math.max(0, TRANSIT_FACTORS_KG_KM.car - TRANSIT_FACTORS_KG_KM[STATE.transitMode]);
+      const annualTransitKgPerPerson = commuteKm * commuteDays * 48 * savingsPerKm;
+
+      // 2. Annual Clean Energy / Rooftop Solar & Smart HVAC CO2 Saved per person (up to 1,650 kg/yr)
+      const annualEnergyKgPerPerson = (solarPct / 100) * 1650;
+
+      // 3. Annual Low-Carbon Mediterranean Diet & Zero-Waste Saved per person (up to 920 kg/yr)
+      const annualDietKgPerPerson = (dietDays / 7) * 920;
+
+      const totalAnnualTons = ((annualTransitKgPerPerson + annualEnergyKgPerPerson + annualDietKgPerPerson) * participants) / 1000;
+      const yearsTo2100 = Math.max(10, 2100 - 2026);
+      const cumulativeTonsTo2100 = totalAnnualTons * yearsTo2100;
+
+      // Scientific Cryosphere & Ocean Conversions:
+      // ~15 metric tons of land glacier ice preserved per ton of CO2 avoided
+      // ~3.0 m² of sustained late-summer Arctic sea ice per ton of CO2 avoided
+      // ~13,800 Liters of combined meltwater + steric thermal expansion prevented per ton of CO2
+      const glacierIceTons = cumulativeTonsTo2100 * 15;
+      const arcticSeaIceM2 = cumulativeTonsTo2100 * 3.0;
+      const waterPreventedLiters = cumulativeTonsTo2100 * 13800;
+      const olympicPools = waterPreventedLiters / 2500000;
+      const rescuedBeachM2 = cumulativeTonsTo2100 * 0.4;
+
+      // Format numbers cleanly
+      const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1000 ? Math.round(n).toLocaleString() : n.toFixed(1);
+
+      document.getElementById('impactCO2Tons').textContent = `${fmt(cumulativeTonsTo2100)} t`;
+      document.getElementById('impactCO2Annual').textContent = `${fmt(totalAnnualTons)} t / year`;
+      document.getElementById('impactIceTons').textContent = `${fmt(glacierIceTons)} t`;
+      document.getElementById('impactArcticM2').textContent = `${fmt(arcticSeaIceM2)} m² Arctic ice`;
+      document.getElementById('impactWaterLiters').textContent = `${fmt(waterPreventedLiters)} L`;
+      document.getElementById('impactPools').textContent = `~${fmt(olympicPools)} Olympic Pools`;
+      document.getElementById('impactBeachM2').textContent = `${fmt(rescuedBeachM2)} m²`;
+    }
+
+    function applyMitigationComparisonToMap() {
+      STATE.showMitigationComparison = true;
+      document.getElementById('chkCompareMitigation').checked = true;
+      STATE.scenarioId = 'ssp119';
+      document.getElementById('scenarioSelect').value = 'ssp119';
+      updateSimulationFromScenarioAndYear();
+      showToast('🌱 Mitigation Active! Emerald zone shows coastline rescued by choosing SSP1-1.9 over SSP5-8.5.', '🛡️');
+    }
+
+    /***************************************************************************
+     * 15. 1-CLICK CSV EXPORT FOR SEMINAR RESEARCH
+     ***************************************************************************/
+    function exportSimulationCSV() {
+      const sc = IPCC_SCENARIOS[STATE.scenarioId];
+      let csv = 'Waypoint_ID,Name,Latitude,Longitude,Local_Slope_Pct,Scenario,Projection_Year,Mean_SLR_m,Storm_Surge_m,Total_Water_Level_m,Inland_Shoreline_Shift_m,Risk_Classification\n';
+
+      COASTAL_WAYPOINTS.forEach(wp => {
+        const shiftM = (STATE.totalWaterMeters / (wp.slopePct / 100)).toFixed(2);
+        csv += `"${wp.id}","${wp.name}",${wp.lat},${wp.lng},${wp.slopePct},"${sc.short}",${STATE.year},${STATE.baseSlrMeters.toFixed(2)},${STATE.stormSurgeMeters.toFixed(2)},${STATE.totalWaterMeters.toFixed(2)},${shiftM},"${wp.riskLevel}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Rising_Tides_Israel_Coast_${sc.short}_${STATE.year}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('📊 Exported 12-Waypoint Hydro-Projection dataset to CSV!');
+    }
+  </script>
+  <!-- Added: link back to the main Save The Coast Line app -->
+  <a href="../" style="position:fixed;left:12px;bottom:12px;z-index:60;padding:8px 14px;border-radius:999px;background:rgba(7,18,36,.92);border:1px solid rgba(56,189,248,.45);color:#67e8f9;font:600 13px Inter,sans-serif;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.5)">← Save The Coast Line: real-data map</a>
+</body>
+</html>
