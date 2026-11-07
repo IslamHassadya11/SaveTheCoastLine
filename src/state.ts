@@ -4,7 +4,7 @@ import { slrScenario, slrWarming, warmingFromBudget, commitment2000y, SURGES, SC
 
 export type Driver = 'scenario' | 'budget' | 'manual';
 export type View = '2d' | '3d' | 'photo';
-export type Panel = null | 'place' | 'emissions' | 'act' | 'data' | 'research' | 'about';
+export type Panel = null | 'place' | 'emissions' | 'act' | 'data' | 'research' | 'learn' | 'about';
 
 export interface State {
   lang: 'en' | 'he';

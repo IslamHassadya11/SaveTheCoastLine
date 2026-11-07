@@ -284,23 +284,22 @@ function step(dt: number) {
 // ---------------- chase camera ----------------
 function chase() {
   if (!st) return;
-  // close chase camera: a fixed distance behind and above the plane, looking past it along the heading.
-  // The plane sits on the camera's centre line, so it stays in the middle of the screen at a steady size.
-  const P = 74;                                   // camera pitch (deg from straight down)
-  const agl = Math.max(20, st.alt - st.floor);
-  const behind = camFar ? 420 : 140;              // metres from camera to plane
-  const camAlt = agl + behind * Math.cos(P * D2R);
-  const camDist = camAlt / Math.cos(P * D2R);    // camera -> ground along the centre line
-  // the point on the ground the camera looks at: ahead of the plane along its heading
-  const ahead = (camDist - behind) * Math.sin(P * D2R);
-  const lat = st.lat + (ahead * Math.cos(st.hdg * D2R)) / 110540;
-  const lon = st.lon + (ahead * Math.sin(st.hdg * D2R)) / (111320 * Math.cos(st.lat * D2R));
-  const H = map.getCanvas().clientHeight;
-  const fov = 0.6435;                             // MapLibre default vertical field of view (rad)
-  const camPx = (0.5 / Math.tan(fov / 2)) * H;
-  const mpp = (camDist * 0.98) / camPx;
-  const zoom = Math.log2((40075016.686 * Math.cos(lat * D2R)) / (512 * mpp));
-  map.jumpTo({ center: [lon, lat], zoom: Math.max(11, Math.min(19, zoom)), bearing: st.hdg, pitch: P, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
+  // Chase camera: placed a fixed distance behind and a little above the plane, looking just past it.
+  // MapLibre computes centre, zoom and pitch from the two points, so hills never push the camera away.
+  const behind = camFar ? 300 : 110;              // metres from camera to plane
+  const up = behind * (camFar ? 0.45 : 0.32);
+  const planeZ = st.alt + st.ground * (EXAG - 1); // plane height as drawn (terrain is exaggerated)
+  const hx = Math.sin(st.hdg * D2R), hy = Math.cos(st.hdg * D2R);
+  const kx = 111320 * Math.cos(st.lat * D2R), ky = 110540;
+  const from: [number, number] = [st.lon - (behind * hx) / kx, st.lat - (behind * hy) / ky];
+  const ahead = camFar ? 120 : 60;
+  const to: [number, number] = [st.lon + (ahead * hx) / kx, st.lat + (ahead * hy) / ky];
+  const groundFrom = map.queryTerrainElevation(from) ?? 0;
+  const camZ = Math.max(planeZ + up, groundFrom + 25);
+  try {
+    const o = map.calculateCameraOptionsFromTo(new maplibregl.LngLat(from[0], from[1]), camZ, new maplibregl.LngLat(to[0], to[1]), planeZ - up * 0.35) as any;
+    map.jumpTo({ ...o, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
+  } catch { /* camera and target coincide - skip this frame */ }
 }
 
 // ---------------- start / stop ----------------
@@ -324,6 +323,10 @@ export function startPlane(g: FloodGrid, site: Site, listener: Listener) {
     alt: 250, hdg, pitch: 0, roll: 0, v: 55, throttle: 0.55, ground: 0, floor: 0,
   };
   savedPad = map.getPadding();
+  camFar = false;           // always start with the close camera
+  // let the camera look at a point in the air (the plane) instead of pinning it to the ground
+  map.setCenterClampedToGround(false);
+  map.stop();               // cancel any camera animation still running
   if (!layer) { layer = makeLayer(); map.addLayer(layer); }
   map.keyboard.disable(); map.dragRotate.disable(); map.dragPan.disable(); map.scrollZoom.disable(); map.touchZoomRotate.disable();
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
@@ -347,6 +350,7 @@ export function stopPlane() {
   map.keyboard.enable(); map.dragRotate.enable(); map.dragPan.enable(); map.scrollZoom.enable(); map.touchZoomRotate.enable();
   if (layer && map.getLayer('uoh-plane')) map.removeLayer('uoh-plane');
   if (savedPad) map.setPadding(savedPad);
+  map.setCenterClampedToGround(true);
   layer = null;
   map.triggerRepaint();
 }

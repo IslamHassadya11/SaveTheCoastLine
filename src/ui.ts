@@ -19,6 +19,7 @@ const flying = () => !!P && P.flying();
 import { relabelHotspots, refreshHotspotPopup, applyHotspots, REPORTS, HOTSPOTS } from './hotspots';
 import { CATS, poiCount, applyPois, relabelPois } from './poi';
 import { visible as lv, saveVisible } from './layerstate';
+import { renderLearn, initLearn } from './learn';
 import { SDGS, RESEARCH, dcSummary, startChecking, setDataCentresVisible, relabelDataCentres } from './research';
 
 let sites: Site[]; let climate: Climate; let grid: FloodGrid;
@@ -28,6 +29,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 export function initUI(s: Site[], c: Climate, g: FloodGrid, hooks: { onPhoto: () => void; onLeavePhoto: () => void }) {
   sites = s; climate = c; grid = g; photoHooks = hooks;
+  initLearn(s);
   renderAll();
   bindGlobal();
   subscribe(onChange);
@@ -184,7 +186,7 @@ function optSummary() {
 }
 
 function renderRail() {
-  const items: [Panel, string, Key][] = [['place', 'place', 'tab_place'], ['emissions', 'factory', 'tab_emissions'], ['act', 'leaf', 'tab_act'], ['data', 'chart', 'tab_data'], ['research', 'book', 'tab_research']];
+  const items: [Panel, string, Key][] = [['place', 'place', 'tab_place'], ['emissions', 'factory', 'tab_emissions'], ['act', 'leaf', 'tab_act'], ['data', 'chart', 'tab_data'], ['research', 'book', 'tab_research'], ['learn', 'school', 'tab_learn']];
   $('#rail').innerHTML = items.map(([p, ic, k]) => `<button data-panel="${p}" class="${state.panel === p ? 'on' : ''}">${icon(ic, 20)}<span>${t(k)}</span></button>`).join('');
 }
 
@@ -282,7 +284,7 @@ function renderDrawer() {
     return;
   }
   dr.hidden = false;
-  const tabs: [Panel, Key][] = [['place', 'tab_place'], ['emissions', 'tab_emissions'], ['act', 'tab_act'], ['data', 'tab_data'], ['research', 'tab_research']];
+  const tabs: [Panel, Key][] = [['place', 'tab_place'], ['emissions', 'tab_emissions'], ['act', 'tab_act'], ['data', 'tab_data'], ['research', 'tab_research'], ['learn', 'tab_learn']];
   dr.innerHTML = `
     <div class="dr-tabs">${tabs.map(([p, k]) => `<button data-panel="${p}" class="${state.panel === p ? 'on' : ''}">${t(k)}</button>`).join('')}
       <button class="dr-close" data-panel="" aria-label="${t('close')}">${icon('close')}</button></div>
@@ -298,6 +300,7 @@ function refreshDrawer(full = false) {
   else if (p === 'act') { if (full || !body.querySelector('.act')) renderAct(body); else updateAct(); }
   else if (p === 'data') renderData(body);
   else if (p === 'research') renderResearch(body);
+  else if (p === 'learn') { if (full || !body.querySelector('.learn-tabs')) renderLearn(body); }
 }
 
 // ----- place panel -----
