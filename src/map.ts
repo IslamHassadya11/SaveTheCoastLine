@@ -6,6 +6,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { FloodGrid, FloodTarget } from './flood';
 import { WATER } from './flood';
 import { ClassicLayer, classicFactor } from './classic';
+import { visible as lv } from './layerstate';
 import type { Site } from './data';
 import { state, set, level, compareLevels } from './state';
 
@@ -205,7 +206,7 @@ function paintFlood(v: View) {
   const m = v.m, flat = classicFlat();
   if (v === main) { if (flat) classic.start(); else classic.stop(); }
   wasFlat = flat;
-  m.setLayoutProperty('coast-today', 'visibility', flat ? 'none' : 'visible');
+  m.setLayoutProperty('coast-today', 'visibility', flat || !lv.coast ? 'none' : 'visible');
   const cl = flat;
   const b = m.getBounds();
   const pw = (b.getEast() - b.getWest()) * 0.3, ph = (b.getNorth() - b.getSouth()) * 0.3;
@@ -264,6 +265,12 @@ export function flightTick() {
   if (now - lastFlightPaint > 400) { lastFlightPaint = now; paintFlood(main); }
   // adding buildings rebuilds the whole building layer, so do it rarely while flying
   if (now - lastFlightScan > 5000) { lastFlightScan = now; scanBuildings(main); }
+}
+
+/** Place pins and today's coastline can be switched off from the layers panel. */
+export function applyMapLayers() {
+  document.body.classList.toggle('no-pins', !lv.pins);
+  for (const v of views()) if (v.m.getLayer('coast-today')) v.m.setLayoutProperty('coast-today', 'visibility', lv.coast && !classicFlat() ? 'visible' : 'none');
 }
 
 /** A PNG of the main map (taken right after a fresh frame, as the drawing buffer is not preserved). */

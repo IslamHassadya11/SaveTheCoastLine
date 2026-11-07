@@ -16,7 +16,9 @@ import type { FlightState } from './plane';
 // three.js + the plane load only when someone flies
 let P: typeof import('./plane') | null = null;
 const flying = () => !!P && P.flying();
-import { relabelHotspots, refreshHotspotPopup, setHotspotsVisible, REPORTS } from './hotspots';
+import { relabelHotspots, refreshHotspotPopup, applyHotspots, REPORTS, HOTSPOTS } from './hotspots';
+import { CATS, poiCount, applyPois, relabelPois } from './poi';
+import { visible as lv, saveVisible } from './layerstate';
 import { SDGS, RESEARCH, dcSummary, startChecking, setDataCentresVisible, relabelDataCentres } from './research';
 
 let sites: Site[]; let climate: Climate; let grid: FloodGrid;
@@ -47,7 +49,7 @@ let floodQueued = false;
 function onChange(s: State, ch: Set<keyof State>) {
   if (ch.has('lang')) {
     try { localStorage.setItem('rt-lang', s.lang); } catch { /* ignore */ }
-    renderAll(); M.applyLanguage(); relabelHotspots(); relabelDataCentres(); return;
+    renderAll(); M.applyLanguage(); relabelHotspots(); relabelDataCentres(); relabelPois(); return;
   }
   if (ch.has('driver') || ch.has('longTerm') || ch.has('scenario') || ch.has('q') || ch.has('surge') || ch.has('compare') || ch.has('style')) renderDock();
   if (ch.has('compare')) { M.setCompare(state.compare, $('#map2')); $('#swipe').hidden = !state.compare; }
@@ -602,11 +604,22 @@ function openLayers() {
   const box = $('#layerbox');
   box.hidden = !box.hidden;
   if (box.hidden) return;
+  const H = state.lang === 'he';
+  const row = (id: string, ic: string, color: string, label: string, count?: number) => `
+    <label class="ly-row"><span class="ly-ic" style="--c:${color}">${ic}</span><span class="ly-name">${label}${count != null ? ` <small>${count}</small>` : ''}</span>
+      <span class="toggle"><input type="checkbox" data-layer="${id}" ${(id === 'bld' ? state.buildings : lv[id]) ? 'checked' : ''}><span class="sw"></span></span></label>`;
+  const nRisk = HOTSPOTS.filter((h) => h.kind === 'risk').length, nSea = HOTSPOTS.length - nRisk;
   box.innerHTML = `
-    <div class="seg small"><button data-base="map" class="${state.basemap === 'map' ? 'on' : ''}">${t('base_map')}</button><button data-base="sat" class="${state.basemap === 'sat' ? 'on' : ''}">${t('base_sat')}</button></div>
-    <label class="toggle"><input type="checkbox" id="bld" ${state.buildings ? 'checked' : ''}><span class="sw"></span>${t('show_buildings')}</label>
-    <label class="toggle"><input type="checkbox" id="hsv" ${state.hotspots ? 'checked' : ''}><span class="sw"></span>${t('show_hotspots')}</label>
-    <label class="toggle"><input type="checkbox" id="dcv" ${state.datacentres ? 'checked' : ''}><span class="sw"></span>${t('show_dc')}</label>
+    <div class="ly-head"><b>${t('layers')}</b><div class="seg small"><button data-base="map" class="${state.basemap === 'map' ? 'on' : ''}">${t('base_map')}</button><button data-base="sat" class="${state.basemap === 'sat' ? 'on' : ''}">${t('base_sat')}</button></div></div>
+    <div class="ly-sec"><h4>${t('ly_base')}</h4>
+      ${row('bld', '▥', '#94a3b8', t('show_buildings'))}${row('coast', '┄', '#163a63', t('legend_today'))}${row('pins', '●', '#38bdf8', t('ly_pins'))}</div>
+    <div class="ly-sec"><h4>${t('ly_sea')}</h4>
+      ${row('risk', '!', '#e11d48', t('ly_risk'), nRisk)}${row('sea', '⚓', '#0e7490', t('ly_underwater'), nSea)}</div>
+    <div class="ly-sec"><h4>${t('ly_infra')}</h4>
+      ${row('dc', '▦', '#10b981', t('show_dc'), 8)}${CATS.filter((c) => c.id !== 'emitters' && c.id !== 'nature').map((c) => row(c.id, c.icon, c.color, H ? c.he : c.en, poiCount(c.id))).join('')}</div>
+    <div class="ly-sec"><h4>${t('ly_pollution')}</h4>${row('emitters', '☁', '#7c3aed', H ? CATS[0].he : CATS[0].en, poiCount('emitters'))}</div>
+    <div class="ly-sec"><h4>${t('ly_nature')}</h4>${row('nature', '🌲', '#16a34a', H ? CATS[4].he : CATS[4].en, poiCount('nature'))}</div>
+    <div class="ly-foot"><button class="linkbtn" data-act="ly-all">${t('ly_all')}</button><button class="linkbtn" data-act="ly-none">${t('ly_none')}</button></div>
     <div class="btnrow"><button class="btn" data-act="share">${icon('link', 16)} ${t('share')}</button><button class="btn" data-act="shot">${icon('camera', 16)} ${t('shot')}</button></div>`;
 }
 
@@ -719,6 +732,11 @@ function bindGlobal() {
         if (flying()) endPlane(); else beginPlane();
         break;
       case 'plane-exit': endPlane(); break;
+      case 'ly-all': case 'ly-none': {
+        const on = d.act === 'ly-all';
+        $('#layerbox').querySelectorAll<HTMLInputElement>('input[data-layer]').forEach((i) => { if (i.dataset.layer !== 'bld') { i.checked = on; setLayer(i.dataset.layer!, on); } });
+        break;
+      }
       case 'dc-check': startChecking(); set({ panel: null }); toast(t('dc_click')); break;
       case 'sdg-open': if (el.dataset.p) set({ panel: el.dataset.p as Panel }); break;
       case 'plane-cam': P?.toggleCamera(); break;
@@ -751,8 +769,7 @@ function bindGlobal() {
     else if (el.id === 'budget' || el.id === 'budget2') set({ budget: Number(el.value), driver: 'budget' });
     else if (el.id === 'manual') set({ manual: Number(el.value) });
     else if (el.id === 'bld') set({ buildings: el.checked });
-    else if (el.id === 'hsv') { set({ hotspots: el.checked }); setHotspotsVisible(el.checked); }
-    else if (el.id === 'dcv') { set({ datacentres: el.checked }); setDataCentresVisible(el.checked); }
+    else if (el.dataset.layer) setLayer(el.dataset.layer, el.checked);
     else if (el.dataset.a) { (act as any)[el.dataset.a] = Number(el.value); updateAct(); }
     else if (el.id === 'a-people') { act.people = Math.max(1, Number(el.value) || 1); act.who = ''; updateAct(); }
     else if (el.id === 'a-years') { act.years = Math.max(1, Number(el.value) || 1); updateAct(); }
@@ -881,4 +898,15 @@ function renderResearch(body: HTMLElement) {
     </tbody></table>
     <p class="muted small">${t('rs_dc_note')}</p>
     ${RESEARCH.map((g) => `<h3>${H ? g.group[1] : g.group[0]}</h3><ul class="sources research">${g.items.map((it) => `<li><a href="${it.u}" target="_blank" rel="noopener">${esc(it.t)} ↗</a><br><span class="muted">${H ? it.note[1] : it.note[0]}</span></li>`).join('')}</ul>`).join('')}`;
+}
+
+
+// ---------------- layer switches ----------------
+function setLayer(id: string, on: boolean) {
+  if (id === 'bld') { set({ buildings: on }); return; }
+  lv[id] = on; saveVisible();
+  if (id === 'risk' || id === 'sea') applyHotspots();
+  else if (id === 'dc') setDataCentresVisible(on);
+  else if (id === 'pins' || id === 'coast') M.applyMapLayers();
+  else applyPois();
 }
