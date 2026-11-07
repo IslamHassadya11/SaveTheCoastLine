@@ -1,0 +1,277 @@
+// Fly a "University of Haifa" plane over the coast while the sea rises.
+// A three.js model is drawn inside MapLibre as a custom 3D layer; the map camera chases it.
+// Flight model: simple and forgiving (thrust, drag, gravity along the flight path, lift/stall,
+// coordinated turns from bank angle), tuned to feel like a light trainer aircraft.
+import * as THREE from 'three';
+import * as maplibregl from 'maplibre-gl';
+import { map, flightTick } from './map';
+import type { FloodGrid } from './flood';
+import type { Site } from './data';
+import { level } from './state';
+
+const D2R = Math.PI / 180;
+const EXAG = 1.35;                 // terrain exaggeration used by the 3D view
+const SCALE = 8;                   // the model is drawn 8x real size so it stays visible from the chase camera
+
+export interface FlightState {
+  lon: number; lat: number; alt: number;   // alt: metres above sea level
+  hdg: number; pitch: number; roll: number; // degrees
+  v: number; throttle: number;              // m/s, 0..1
+  ground: number;                           // metres, terrain under the plane
+  floor: number;                            // ground or water surface under the plane
+}
+type Listener = (s: FlightState, info: { crashed: boolean }) => void;
+
+let st: FlightState | null = null;
+let layer: maplibregl.CustomLayerInterface | null = null;
+let raf = 0;
+let grid: FloodGrid;
+let onTick: Listener = () => {};
+const keys = new Set<string>();
+let touch = { pitch: 0, roll: 0, thr: 0 };
+let camFar = false;
+let crashedUntil = 0;
+let savedPad: maplibregl.PaddingOptions | null = null;
+
+export const flying = () => !!st;
+if (import.meta.env.DEV) (window as any).__plane = () => (st ? { ...st, keys: [...keys] } : null);
+export function setTouch(t: Partial<typeof touch>) { touch = { ...touch, ...t }; }
+export function toggleCamera() { camFar = !camFar; }
+
+// ---------------- model ----------------
+function label(text: string, w: number, h: number, bg: string, fg: string, font: string) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d')!;
+  x.fillStyle = bg; x.fillRect(0, 0, w, h);
+  x.fillStyle = fg; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(text, w / 2, h / 2 + 2);
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Plane in local metres: x = right wing, y = nose (forward), z = up. Real size ~ a Cessna. */
+function buildPlane() {
+  const g = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5, metalness: 0.1 });
+  const blue = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.45, metalness: 0.15 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.6 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.6 });
+
+  // fuselage (along y)
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.45, 7.5, 20), white);
+  body.rotation.x = 0; g.add(body);                               // cylinder axis is y already
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.75, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2), white);
+  nose.position.y = 3.75; g.add(nose);
+  const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.77, 0.6, 4.2, 20, 1, true), blue);
+  stripe.position.y = -0.6; g.add(stripe);
+  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2.4), glass);
+  cockpit.position.set(0, 1.4, 0.45); cockpit.scale.set(0.9, 1.6, 0.8); g.add(cockpit);
+
+  // wings (high wing), with the university name on top
+  const wingL = label('UNIVERSITY OF HAIFA', 1024, 128, '#f8fafc', '#1e3a8a', 'bold 78px Inter, Arial, sans-serif');
+  const wingR = label('אוניברסיטת חיפה', 1024, 128, '#f8fafc', '#1e3a8a', 'bold 84px Heebo, Arial, sans-serif');
+  const wingGeo = new THREE.BoxGeometry(5.4, 1.5, 0.16);
+  const mk = (tex: THREE.Texture) => [white, white, white, white, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }), white];
+  const lw = new THREE.Mesh(wingGeo, mk(wingL)); lw.position.set(-2.9, 0.9, 0.85); g.add(lw);
+  const rw = new THREE.Mesh(wingGeo, mk(wingR)); rw.position.set(2.9, 0.9, 0.85); g.add(rw);
+  for (const sx of [-1, 1]) {
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.18), blue); tip.position.set(sx * 5.55, 0.9, 0.85); g.add(tip);
+  }
+  // fuselage side lettering
+  const sideTex = label('UNIVERSITY OF HAIFA', 1024, 96, '#1e40af', '#ffffff', 'bold 62px Inter, Arial, sans-serif');
+  for (const sx of [-1, 1]) {
+    const side = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 0.42), new THREE.MeshBasicMaterial({ map: sideTex, side: THREE.DoubleSide }));
+    // face outwards (normal = +-x), text running along the fuselage, upright
+    const m4 = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, sx, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(sx, 0, 0));
+    side.quaternion.setFromRotationMatrix(m4);
+    side.position.set(sx * 0.79, -0.7, 0.05);
+    g.add(side);
+  }
+  // tail
+  const hstab = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.9, 0.12), white); hstab.position.set(0, -3.5, 0.2); g.add(hstab);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 1.6), blue); fin.position.set(0, -3.4, 1.0); g.add(fin);
+  // propeller
+  const prop = new THREE.Group();
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.22), dark); prop.add(blade);
+  const blade2 = blade.clone(); blade2.rotation.y = Math.PI / 2; prop.add(blade2);
+  prop.position.y = 4.55; g.add(prop);
+  // landing gear
+  for (const [x, y] of [[-0.9, 0.6], [0.9, 0.6], [0, 3.0]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.18, 12), dark); w.rotation.z = Math.PI / 2; w.position.set(x, y, -0.95); g.add(w);
+  }
+  g.scale.setScalar(SCALE);
+  return { group: g, prop };
+}
+
+// ---------------- custom layer ----------------
+function makeLayer(): maplibregl.CustomLayerInterface {
+  let renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera;
+  let plane: ReturnType<typeof buildPlane>, shadow: THREE.Mesh;
+  return {
+    id: 'uoh-plane', type: 'custom', renderingMode: '3d',
+    onAdd(m, gl) {
+      camera = new THREE.Camera();
+      scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 2.2));
+      const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(-0.5, -0.4, 1); scene.add(sun);
+      plane = buildPlane(); scene.add(plane.group);
+      shadow = new THREE.Mesh(new THREE.CircleGeometry(4.5 * SCALE, 32), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
+      scene.add(shadow);
+      renderer = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true });
+      renderer.autoClear = false;
+    },
+    render(_gl, args) {
+      if (!st) return;
+      const renderAlt = st.alt + st.ground * (EXAG - 1);   // terrain is drawn exaggerated; keep height above ground right
+      const origin = maplibregl.MercatorCoordinate.fromLngLat([st.lon, st.lat], renderAlt);
+      const s = origin.meterInMercatorCoordinateUnits();
+      // local frame: x east, y north, z up (metres)  ->  mercator: x east, y south, z up
+      const local = new THREE.Matrix4().makeTranslation(origin.x, origin.y, origin.z ?? 0).scale(new THREE.Vector3(s, -s, s));
+      camera.projectionMatrix = new THREE.Matrix4().fromArray(args.defaultProjectionData.mainMatrix as unknown as number[]).multiply(local);
+      plane.group.rotation.set(0, 0, 0);
+      plane.group.rotation.order = 'ZXY';
+      plane.group.rotation.z = -st.hdg * D2R;      // heading (clockwise from north)
+      plane.group.rotation.x = st.pitch * D2R;     // nose up
+      plane.group.rotation.y = st.roll * D2R;      // right wing down
+      plane.prop.rotation.y += 0.6 + st.throttle;
+      const agl = Math.max(0, st.alt - st.floor);
+      shadow.position.set(0, 0, -agl);
+      shadow.scale.setScalar(Math.max(0.3, 1 - agl / 1500));
+      renderer.resetState();
+      renderer.render(scene, camera);
+    },
+  };
+}
+
+// ---------------- physics ----------------
+function groundAt(lon: number, lat: number) {
+  const e = map.queryTerrainElevation([lon, lat]);
+  return e == null ? 0 : e / EXAG;
+}
+/** Height of the water surface under the plane, if this spot is flooded at the current sea level. */
+function waterAt(lon: number, lat: number): number | null {
+  const c = grid.sample(lon, lat);
+  const L = level();
+  if (!c) return null;
+  if (c.sea) return Math.max(0, L);
+  return c.fill < L ? L : null;
+}
+
+function step(dt: number) {
+  if (!st) return;
+  const k = (a: string, b?: string) => keys.has(a) || (b ? keys.has(b) : false);
+  const pitchIn = (k('arrowup', 'w') ? 1 : 0) - (k('arrowdown', 's') ? 1 : 0) + touch.pitch;
+  const rollIn = (k('arrowright', 'd') ? 1 : 0) - (k('arrowleft', 'a') ? 1 : 0) + touch.roll;
+  const yawIn = (k('e') ? 1 : 0) - (k('q') ? 1 : 0);
+  const thrIn = (k('shift', '=') || k('+') ? 1 : 0) - (k('control', '-') ? 1 : 0) + touch.thr;
+  st.throttle = Math.max(0, Math.min(1, st.throttle + thrIn * 0.5 * dt));
+
+  // attitude: stick inputs, gentle self-levelling when released
+  st.pitch += pitchIn * 32 * dt;
+  st.roll += rollIn * 75 * dt;
+  if (!rollIn) st.roll -= Math.sign(st.roll) * Math.min(Math.abs(st.roll), 28 * dt);
+  if (!pitchIn) st.pitch -= Math.sign(st.pitch) * Math.min(Math.abs(st.pitch), 4 * dt);
+  st.pitch = Math.max(-35, Math.min(35, st.pitch));
+  st.roll = Math.max(-65, Math.min(65, st.roll));
+
+  // speed: thrust - drag - gravity along the flight path
+  const thrust = st.throttle * 11;
+  const drag = 0.0011 * st.v * st.v + 0.6;
+  const grav = 9.81 * Math.sin(st.pitch * D2R);
+  st.v = Math.max(18, Math.min(150, st.v + (thrust - drag - grav) * dt));
+  // stall: below ~30 m/s the wings stop lifting and the nose drops
+  const stall = st.v < 30;
+  if (stall) st.pitch -= (30 - st.v) * 2.2 * dt;
+
+  // turning: coordinated turn from bank angle, plus a little rudder
+  const turn = (9.81 * Math.tan(st.roll * D2R)) / Math.max(15, st.v) / D2R;
+  st.hdg = (st.hdg + (turn + yawIn * 12) * dt + 360) % 360;
+
+  // move
+  const climb = st.v * Math.sin(st.pitch * D2R) - (stall ? (30 - st.v) * 0.6 : 0);
+  const fwd = st.v * Math.cos(st.pitch * D2R) * dt;
+  st.lat += (fwd * Math.cos(st.hdg * D2R)) / 110540;
+  st.lon += (fwd * Math.sin(st.hdg * D2R)) / (111320 * Math.cos(st.lat * D2R));
+  st.lat = Math.max(31.2, Math.min(33.5, st.lat)); st.lon = Math.max(34.0, Math.min(35.9, st.lon));
+  st.alt = Math.min(3000, st.alt + climb * dt);
+
+  // ground and water
+  st.ground = groundAt(st.lon, st.lat);
+  const water = waterAt(st.lon, st.lat);
+  const floor = Math.max(st.ground, water ?? -1e9);
+  st.floor = floor;
+  let crashed = false;
+  if (st.alt < floor + 4) {
+    crashed = true;
+    crashedUntil = performance.now() + 1800;
+    st.alt = floor + 180; st.v = 55; st.pitch = 4; st.roll = 0; st.throttle = Math.max(st.throttle, 0.6);
+  }
+  onTick(st, { crashed: crashed || performance.now() < crashedUntil });
+}
+
+// ---------------- chase camera ----------------
+function chase() {
+  if (!st) return;
+  const P = 72;                                   // camera pitch (deg from straight down)
+  const agl = Math.max(30, st.alt - st.floor);
+  const t = camFar ? 0.72 : 0.42;                 // where the plane sits along the camera ray
+  const camDist = agl / ((1 - t) * Math.cos(P * D2R));
+  // the point on the ground the camera looks at: ahead of the plane along its heading
+  const ahead = agl * Math.tan(P * D2R);
+  const lat = st.lat + (ahead * Math.cos(st.hdg * D2R)) / 110540;
+  const lon = st.lon + (ahead * Math.sin(st.hdg * D2R)) / (111320 * Math.cos(st.lat * D2R));
+  const H = map.getCanvas().clientHeight;
+  const fov = 0.6435;                             // MapLibre default vertical field of view (rad)
+  const camPx = (0.5 / Math.tan(fov / 2)) * H;
+  const mpp = (camDist * 0.98) / camPx;
+  const zoom = Math.log2((40075016.686 * Math.cos(lat * D2R)) / (512 * mpp));
+  map.jumpTo({ center: [lon, lat], zoom: Math.max(11, Math.min(18, zoom)), bearing: st.hdg, pitch: P, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
+}
+
+// ---------------- start / stop ----------------
+const kd = (e: KeyboardEvent) => {
+  if ((e.target as HTMLElement)?.closest?.('input,textarea,select')) return;
+  const key = e.key.toLowerCase();
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) e.preventDefault();
+  if (key === 'c') toggleCamera();
+  keys.add(key === ' ' ? 'shift' : key);
+};
+const ku = (e: KeyboardEvent) => { const key = e.key.toLowerCase(); keys.delete(key === ' ' ? 'shift' : key); };
+
+export function startPlane(g: FloodGrid, site: Site, listener: Listener) {
+  grid = g; onTick = listener;
+  if (st) return;
+  // start offshore, facing the coast, 250 m up
+  const back = 2200, hdg = (site.bearing + 360) % 360;
+  st = {
+    lat: site.lat - (back * Math.cos(hdg * D2R)) / 110540,
+    lon: site.lon - (back * Math.sin(hdg * D2R)) / (111320 * Math.cos(site.lat * D2R)),
+    alt: 250, hdg, pitch: 0, roll: 0, v: 55, throttle: 0.55, ground: 0, floor: 0,
+  };
+  savedPad = map.getPadding();
+  if (!layer) { layer = makeLayer(); map.addLayer(layer); }
+  map.keyboard.disable(); map.dragRotate.disable(); map.dragPan.disable(); map.scrollZoom.disable(); map.touchZoomRotate.disable();
+  window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+  let last = performance.now();
+  const loop = (ts: number) => {
+    if (!st) return;
+    // real time, in small physics steps, whatever the frame rate
+    let dt = Math.min(0.5, (ts - last) / 1000); last = ts;
+    while (dt > 1e-4) { const h = Math.min(0.04, dt); step(h); dt -= h; }
+    chase(); flightTick();
+    map.triggerRepaint();
+    raf = requestAnimationFrame(loop);
+  };
+  raf = requestAnimationFrame(loop);
+}
+
+export function stopPlane() {
+  if (!st) return;
+  st = null; cancelAnimationFrame(raf); keys.clear(); touch = { pitch: 0, roll: 0, thr: 0 };
+  window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
+  map.keyboard.enable(); map.dragRotate.enable(); map.dragPan.enable(); map.scrollZoom.enable(); map.touchZoomRotate.enable();
+  if (layer && map.getLayer('uoh-plane')) map.removeLayer('uoh-plane');
+  if (savedPad) map.setPadding(savedPad);
+  layer = null;
+  map.triggerRepaint();
+}

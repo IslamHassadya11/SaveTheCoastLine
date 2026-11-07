@@ -23,6 +23,8 @@ elevation data and real buildings, and see what our own choices change.
 - **Storms on top** (high tide → extreme storm) and **Compare futures**: a swipe divider with net zero (SSP1-1.9) on the left and
   fossil fuels (SSP5-8.5) on the right, plus the land, buildings and roads saved.
 - **Fly over every place**: 23 coastal sites, fly-around orbit, a full-coast flight north → south, and a keyboard **drone mode** (W/A/S/D, Q/E, R/F, Shift).
+- **Fly the University of Haifa plane** (place bar → *Fly the plane*): a light aircraft with the university's name on its wings and fuselage, simple flight physics (thrust, drag, lift and stall, banked turns), a chase camera, and a live readout of whether the ground under you is flooded. Raise the sea mid-flight with the year slider or the `,` / `.` keys. Touch buttons on phones.
+- **Danger & underwater-heritage markers**: places at special risk (Haifa Bay, the Krayot, Old Akko, Nahariya, Atlit, Orot Rabin, Netanya cliffs, Tel Aviv, Ashdod, Ashkelon) with live numbers, and sites the sea already drowned (Atlit Yam, the Athlit ram, Neve Yam, Dor, Caesarea, Akko harbour), each with links to sources and climate reports.
 - **Click anywhere** to get ground height, the sea level that reaches it and the first year it floods per scenario. **Search an address** ("is my home safe?").
 - **What can we do?** calculator: commuting, flights, food and home electricity for me / our seminar / the university / Israel / the world → tonnes CO₂, Arctic sea ice kept, seawater kept out of the ocean, Israeli coast kept dry.
 - **Data panel**: Hadera tide gauge (measured since 1995) joined to IPCC projections; Mauna Loa CO₂.

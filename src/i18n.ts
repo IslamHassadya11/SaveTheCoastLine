@@ -104,6 +104,11 @@ const EN = {
   saved_land: 'Land saved', saved_bld: 'Buildings saved', saved_road: 'Roads saved', saved_scope: 'Net zero vs fossil fuels, whole coast',
   swipe_low: 'Net zero (SSP1-1.9)', swipe_high: 'Fossil-fuelled (SSP5-8.5)', swipe_drag: 'Drag to compare',
   pop_erosion: 'Erosion reaches it at', pop_dist: '{m} m from today’s shore · shore retreats ~{r} m per metre of rise', pop_eroded: 'Lost to the sea (erosion, illustration)',
+  fly_plane: 'Fly the plane', fl_title: 'University of Haifa · flight', fl_cam: 'Camera', fl_exit: 'Land (Esc)',
+  fl_speed: 'Speed', fl_alt: 'Height', fl_hdg: 'Heading', fl_thr: 'Throttle',
+  fl_help: 'W/S or ↑/↓ climb · A/D or ←/→ turn · Shift/Space faster · Ctrl slower · Q/E rudder · , / . change year · C camera · Esc land',
+  fl_wet: 'Under water here: {d} deep', fl_dry: 'Dry here: {d} above the water', fl_sea: 'Over the open sea', fl_high: 'High ground - safe from the sea',
+  fl_crash: 'Splash! Too low - pulling back up', show_hotspots: 'Danger & underwater sites', reports: 'Climate reports',
   classic: 'Classic lab', classic_hint: 'The original Rising Tides lab: animated flood map, 3D coastal twin and seminar sites',
 };
 
@@ -194,6 +199,11 @@ const HE: Partial<Record<Key, string>> = {
   saved_land: 'שטח שניצל', saved_bld: 'מבנים שניצלו', saved_road: 'כבישים שניצלו', saved_scope: 'אפס נטו מול דלק מאובנים, כל החוף',
   swipe_low: 'אפס נטו (SSP1-1.9)', swipe_high: 'דלק מאובנים (SSP5-8.5)', swipe_drag: 'גררו להשוואה',
   pop_erosion: 'הסחף מגיע לכאן ב־', pop_dist: '{m} מ׳ מקו החוף היום · החוף נסוג כ־{r} מ׳ לכל מטר עלייה', pop_eroded: 'אבד לים (סחף, המחשה)',
+  fly_plane: 'טיסה במטוס', fl_title: 'אוניברסיטת חיפה · טיסה', fl_cam: 'מצלמה', fl_exit: 'נחיתה (Esc)',
+  fl_speed: 'מהירות', fl_alt: 'גובה', fl_hdg: 'כיוון', fl_thr: 'מצערת',
+  fl_help: 'W/S או ↑/↓ טיפוס · A/D או ←/→ פנייה · Shift/רווח מהר יותר · Ctrl לאט יותר · Q/E הגה כיוון · , / . שינוי שנה · C מצלמה · Esc נחיתה',
+  fl_wet: 'מוצף כאן: עומק {d}', fl_dry: 'יבש כאן: {d} מעל המים', fl_sea: 'מעל הים הפתוח', fl_high: 'קרקע גבוהה - מוגנת מהים',
+  fl_crash: 'פלאש! נמוך מדי - מושכים למעלה', show_hotspots: 'אתרים בסכנה ואתרים תת־ימיים', reports: 'דוחות אקלים',
   classic: 'המעבדה הקלאסית', classic_hint: 'המעבדה המקורית: מפת הצפה מונפשת, תאום חוף בתלת־ממד ואתרי הסמינר',
 };
 
