@@ -22,7 +22,7 @@ export interface State {
   site: string;
   panel: Panel;
   buildings: boolean;
-  style: 'real' | 'illus'; // real elevation flooding, or illustration with shoreline erosion
+  style: 'real' | 'illus' | 'classic'; // real elevation flooding, or illustration with shoreline erosion
 }
 
 export const state: State = {

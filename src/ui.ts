@@ -147,10 +147,10 @@ function renderDock() {
       ${yearRow}
       <div class="row-split">
         <div class="drivers seg">${(['scenario', 'budget', 'manual'] as const).map((k) => `<button data-driver="${k}" class="${d === k ? 'on' : ''}">${t(('driver_' + k) as Key)}</button>`).join('')}</div>
-        <div class="seg small style-seg" title="${t('style_note')}">${(['real', 'illus'] as const).map((k) => `<button data-style="${k}" class="${state.style === k ? 'on' : ''}">${t(('style_' + k) as Key)}</button>`).join('')}</div>
+        <div class="seg small style-seg" title="${t('style_note')}">${(['real', 'illus', 'classic'] as const).map((k) => `<button data-style="${k}" class="${state.style === k ? 'on' : ''}">${t(('style_' + k) as Key)}</button>`).join('')}</div>
         ${d !== 'manual' ? `<button class="cmp-btn ${state.compare ? 'on' : ''}" data-act="compare">${icon('swap', 16)}<span>${t('compare')}</span></button>` : ''}
       </div>
-      ${state.style === 'illus' ? `<p class="style-note">${t('style_illus_note')}</p>` : ''}
+      ${state.style !== 'real' ? `<p class="style-note">${t(state.style === 'classic' ? 'style_classic_note' : 'style_illus_note')}</p>` : ''}
       <div class="driver-body">${body}</div>
       <details class="opts" ${optsOpen ? 'open' : ''}>
         <summary><span>${t('more_opts')}</span><span class="opt-sum">${optSummary()}</span>${icon('chev_d', 16)}</summary>
@@ -181,9 +181,17 @@ function renderRail() {
 
 function renderLegend() {
   const sat = state.basemap === 'sat';
+  if (state.style === 'classic') {
+    $('#legend').innerHTML = `
+      <div class="lg-row"><i class="lg-sw classic"></i><span>${t('legend_new_sea')}</span></div>
+      <div class="lg-row"><i class="lg-sw foam"></i><span>${t('legend_edge')}</span></div>
+      <div class="lg-row"><i class="lg-line amber"></i><span>${t('legend_today')}</span></div>
+      <div class="lg-row"><i class="lg-sw bld"></i><span>${t('legend_bld')}</span></div>
+      <div class="lg-note">${t('legend_classic')}</div>`;
+    return;
+  }
   $('#legend').innerHTML = `
     <div class="lg-row"><i class="lg-sw sea ${sat ? 'sat' : ''}"></i><span>${t('legend_new_sea')}</span></div>
-    <div class="lg-row"><i class="lg-sw foam"></i><span>${t('legend_edge')}</span></div>
     <div class="lg-row"><i class="lg-line ${sat ? 'sat' : ''}"></i><span>${t('legend_today')}</span></div>
     <div class="lg-row"><i class="lg-sw bld"></i><span>${t('legend_bld')}</span></div>
     ${state.style === 'illus' ? `<div class="lg-note">${t('legend_illus')}</div>` : ''}`;
@@ -201,7 +209,7 @@ function updateLive() {
   if (state.longTerm) sub.unshift(t('in_2000y'));
   $('#lvlsub').textContent = sub.join(' · ');
   void base;
-  const il = state.style === 'illus';
+  const il = state.style !== 'real';
   const km2 = state.lang === 'he' ? 'קמ״ר' : 'km²', km = state.lang === 'he' ? 'ק״מ' : 'km';
   const amounts = (l: number) => ({ land: reached('__all', 'land_m2', l, il) / 1e6, bld: reached('__all', 'buildings', l, il), road: reached('__all', 'road_m', l, il) / 1000 });
   if (cmp) {
@@ -220,7 +228,7 @@ function updateLive() {
       <div class="stat"><div class="v">${fmt(a.land, a.land < 10 ? 1 : 0)} <small>${km2}</small></div><div class="l">${t('land')}</div></div>
       <div class="stat"><div class="v">${fmt(Math.round(a.bld))}</div><div class="l">${t('buildings')}</div></div>
       <div class="stat"><div class="v">${fmt(a.road, a.road < 10 ? 1 : 0)} <small>${km}</small></div><div class="l">${t('roads')}</div></div>
-      <div class="scope">${t('whole_coast')}${il ? ' · ' + t('style_illus') : ''}</div>`;
+      <div class="scope">${t('whole_coast')}${il ? ' · ' + t(('style_' + state.style) as Key) : ''}</div>`;
   }
   const yv = $('#yearv'); if (yv) yv.textContent = String(state.year);
   const yr = $<HTMLInputElement>('#year'); if (yr && Number(yr.value) !== state.year) yr.value = String(state.year);
@@ -290,7 +298,7 @@ function renderPlace(body: HTMLElement) {
   const km = state.lang === 'he' ? 'ק״מ' : 'km';
   const ha = state.lang === 'he' ? 'דונם' : 'ha';
   const landHa = (v: number) => state.lang === 'he' ? v / 1000 : v / 1e4; // dunam or hectare
-  const r = (k: 'buildings' | 'land_m2' | 'road_m', l: number) => reached(s.id, k, l, state.style === 'illus');
+  const r = (k: 'buildings' | 'land_m2' | 'road_m', l: number) => reached(s.id, k, l, state.style !== 'real');
   const rows = [
     { id: 'ssp119' as ScenarioId }, { id: 'ssp245' as ScenarioId }, { id: 'ssp585' as ScenarioId }, { id: 'ssp585_low' as ScenarioId },
   ];
@@ -578,7 +586,7 @@ function openPlaces() {
   const box = $('#places');
   box.hidden = !box.hidden;
   if (box.hidden) return;
-  box.innerHTML = `<ul>${sites.map((s) => `<li><button data-site="${s.id}" class="${s.id === state.site ? 'on' : ''}"><b>${esc(siteName(s))}</b><span>${esc(siteTag(s))}</span><em>${fmt(Math.round(reached(s.id, 'buildings', Math.max(level(), 0.01), state.style === 'illus')))} ${t('bld_short')}</em></button></li>`).join('')}</ul>`;
+  box.innerHTML = `<ul>${sites.map((s) => `<li><button data-site="${s.id}" class="${s.id === state.site ? 'on' : ''}"><b>${esc(siteName(s))}</b><span>${esc(siteTag(s))}</span><em>${fmt(Math.round(reached(s.id, 'buildings', Math.max(level(), 0.01), state.style !== 'real')))} ${t('bld_short')}</em></button></li>`).join('')}</ul>`;
 }
 
 function openLayers() {
@@ -662,7 +670,13 @@ function bindGlobal() {
       return;
     }
     if (d.panel !== undefined) { const p = (d.panel || null) as Panel; set({ panel: state.panel === p ? null : p }); return; }
-    if (d.style) { set({ style: d.style as State['style'] }); return; }
+    if (d.style) {
+      const entering = d.style === 'classic' && state.style !== 'classic';
+      set({ style: d.style as State['style'], ...(entering ? { basemap: 'sat' as const } : {}) });
+      // the classic coastline is drawn at regional scale (like the original lab), so step back a little
+      if (entering && M.map.getZoom() > 12.6) setTimeout(() => M.map.easeTo({ zoom: 12.4, duration: 1200 }), 60);
+      return;
+    }
     if (d.scen) { set({ scenario: d.scen as ScenarioId, driver: 'scenario' }); return; }
     if (d.q) { set({ q: Number(d.q) }); return; }
     if (d.driver) { set({ driver: d.driver as State['driver'], ...(d.driver === 'manual' ? { manual: Math.round(baseLevel() * 20) / 20, longTerm: false } : {}) }); return; }
