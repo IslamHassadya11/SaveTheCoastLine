@@ -4,7 +4,7 @@ import { slrScenario, slrWarming, warmingFromBudget, commitment2000y, SURGES, SC
 
 export type Driver = 'scenario' | 'budget' | 'manual';
 export type View = '2d' | '3d' | 'photo';
-export type Panel = null | 'place' | 'emissions' | 'act' | 'data' | 'about';
+export type Panel = null | 'place' | 'emissions' | 'act' | 'data' | 'research' | 'about';
 
 export interface State {
   lang: 'en' | 'he';
@@ -23,13 +23,14 @@ export interface State {
   panel: Panel;
   buildings: boolean;
   hotspots: boolean;       // danger & underwater-heritage markers
+  datacentres: boolean;    // data-centre layer
   style: 'real' | 'illus' | 'classic'; // real elevation flooding, or illustration with shoreline erosion
 }
 
 export const state: State = {
   lang: 'en', driver: 'scenario', scenario: 'ssp245', q: 2, year: 2100, budget: 2300, longTerm: false,
   manual: 1, surge: 'calm', compare: false, view: '2d', basemap: 'map', site: 'haifa_bay', panel: null,
-  buildings: true, style: 'real', hotspots: true,
+  buildings: true, style: 'real', hotspots: true, datacentres: true,
 };
 
 type Fn = (s: State, changed: Set<keyof State>) => void;

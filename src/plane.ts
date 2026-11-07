@@ -11,7 +11,7 @@ import { level } from './state';
 
 const D2R = Math.PI / 180;
 const EXAG = 1.35;                 // terrain exaggeration used by the 3D view
-const SCALE = 8;                   // the model is drawn 8x real size so it stays visible from the chase camera
+const SCALE = 3;                   // the model is drawn 3x real size so it reads well from the chase camera
 
 export interface FlightState {
   lon: number; lat: number; alt: number;   // alt: metres above sea level
@@ -39,57 +39,129 @@ export function setTouch(t: Partial<typeof touch>) { touch = { ...touch, ...t };
 export function toggleCamera() { camFar = !camFar; }
 
 // ---------------- model ----------------
-function label(text: string, w: number, h: number, bg: string, fg: string, font: string) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
+// University of Haifa colours, taken from the logo
+const NAVY = '#1f3346', CYAN = '#18b4e6';
+const NAVY_HEX = 0x1f3346, CYAN_HEX = 0x18b4e6;
+
+/** The university mark: two overlapping roof chevrons (navy, cyan) and a small cyan bar - a redrawn version. */
+function drawMark(x: CanvasRenderingContext2D, cx: number, cy: number, w: number) {
+  const h = w * 0.5, t = w * 0.16;
+  const P = (u: number, v: number): [number, number] => [cx - w / 2 + u * w, cy - h / 2 + v * h];
+  const chevron = (pts: [number, number][], color: string) => {
+    x.strokeStyle = color; x.lineWidth = t; x.lineJoin = 'miter'; x.lineCap = 'butt';
+    x.beginPath(); pts.forEach(([u, v], i) => { const [px, py] = P(u, v); if (i) x.lineTo(px, py); else x.moveTo(px, py); }); x.stroke();
+  };
+  chevron([[0.02, 1.0], [0.4, 0.22], [0.74, 0.86]], NAVY);
+  chevron([[0.3, 1.0], [0.62, 0.34], [0.98, 1.0]], CYAN);
+  x.fillStyle = CYAN; x.beginPath();
+  const q = [[0.74, 0.0], [0.86, 0.0], [0.94, 0.32], [0.82, 0.32]] as [number, number][];
+  q.forEach(([u, v], i) => { const [px, py] = P(u, v); if (i) x.lineTo(px, py); else x.moveTo(px, py); }); x.closePath(); x.fill();
+}
+function tex(c: HTMLCanvasElement) { const t = new THREE.CanvasTexture(c); t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace; return t; }
+/** Wing top: mark + name, on white with a cyan leading-edge stripe. */
+function wingTexture(text: string, font: string, rtl: boolean) {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 192;
   const x = c.getContext('2d')!;
-  x.fillStyle = bg; x.fillRect(0, 0, w, h);
-  x.fillStyle = fg; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.fillText(text, w / 2, h / 2 + 2);
-  const t = new THREE.CanvasTexture(c); t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, 1024, 192);
+  x.fillStyle = CYAN; x.fillRect(0, 0, 1024, 18);
+  x.fillStyle = NAVY; x.fillRect(0, 174, 1024, 18);
+  const markX = rtl ? 900 : 124;
+  drawMark(x, markX, 96, 170);
+  x.fillStyle = NAVY; x.font = font; x.textBaseline = 'middle'; x.textAlign = 'center';
+  x.direction = rtl ? 'rtl' : 'ltr';
+  x.fillText(text, rtl ? 430 : 594, 100, 760);
+  return { canvas: c, texture: tex(c) };
+}
+/** Fuselage side: navy band with the three names, like the logo. */
+function sideTexture() {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 160;
+  const x = c.getContext('2d')!;
+  x.fillStyle = NAVY; x.fillRect(0, 0, 1024, 160);
+  x.fillStyle = CYAN; x.fillRect(0, 140, 1024, 20);
+  x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = 'bold 52px Heebo, Arial, sans-serif'; x.fillText('אוניברסיטת חיפה', 512, 36);
+  x.font = 'bold 50px Inter, Arial, sans-serif'; x.fillText('UNIVERSITY OF HAIFA', 512, 84);
+  x.font = 'bold 34px Arial, sans-serif'; x.fillText('جامعة حيفا', 512, 120);
+  return tex(c);
+}
+/** Tail fin: white with the mark. */
+function finTexture() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+  const x = c.getContext('2d')!;
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, 512, 512);
+  drawMark(x, 256, 270, 400);
+  return tex(c);
+}
+/** If the real logo is added to the repository as public/uoh-logo.png, use it on the tail and wings. */
+function useRealLogo(onLoad: (img: HTMLImageElement) => void) {
+  const img = new Image();
+  img.onload = () => onLoad(img);
+  img.src = import.meta.env.BASE_URL + 'uoh-logo.png';
 }
 
 /** Plane in local metres: x = right wing, y = nose (forward), z = up. Real size ~ a Cessna. */
 function buildPlane() {
   const g = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5, metalness: 0.1 });
-  const blue = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.45, metalness: 0.15 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.6 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, metalness: 0.1 });
+  const navy = new THREE.MeshStandardMaterial({ color: NAVY_HEX, roughness: 0.45, metalness: 0.15 });
+  const cyan = new THREE.MeshStandardMaterial({ color: CYAN_HEX, roughness: 0.4, metalness: 0.15 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x0b1724, roughness: 0.1, metalness: 0.6 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.6 });
 
   // fuselage (along y)
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.45, 7.5, 20), white);
-  body.rotation.x = 0; g.add(body);                               // cylinder axis is y already
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.75, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2), white);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.45, 7.5, 24), white); g.add(body);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.75, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), white);
   nose.position.y = 3.75; g.add(nose);
-  const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.77, 0.6, 4.2, 20, 1, true), blue);
-  stripe.position.y = -0.6; g.add(stripe);
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.6, 16), cyan); spinner.position.y = 4.75; g.add(spinner);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.765, 0.62, 3.9, 24, 1, true), navy); band.position.y = -0.55; g.add(band);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.77, 0.76, 0.25, 24, 1, true), cyan); ring.position.y = 1.5; g.add(ring);
   const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2.4), glass);
-  cockpit.position.set(0, 1.4, 0.45); cockpit.scale.set(0.9, 1.6, 0.8); g.add(cockpit);
+  cockpit.position.set(0, 1.9, 0.45); cockpit.scale.set(0.9, 1.6, 0.8); g.add(cockpit);
 
-  // wings (high wing), with the university name on top
-  const wingL = label('UNIVERSITY OF HAIFA', 1024, 128, '#f8fafc', '#1e3a8a', 'bold 78px Inter, Arial, sans-serif');
-  const wingR = label('אוניברסיטת חיפה', 1024, 128, '#f8fafc', '#1e3a8a', 'bold 84px Heebo, Arial, sans-serif');
+  // wings (high wing): mark + English on the left, mark + Hebrew on the right
+  const wl = wingTexture('UNIVERSITY OF HAIFA', 'bold 74px Inter, Arial, sans-serif', false);
+  const wr = wingTexture('אוניברסיטת חיפה', 'bold 84px Heebo, Arial, sans-serif', true);
   const wingGeo = new THREE.BoxGeometry(5.4, 1.5, 0.16);
-  const mk = (tex: THREE.Texture) => [white, white, white, white, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 }), white];
-  const lw = new THREE.Mesh(wingGeo, mk(wingL)); lw.position.set(-2.9, 0.9, 0.85); g.add(lw);
-  const rw = new THREE.Mesh(wingGeo, mk(wingR)); rw.position.set(2.9, 0.9, 0.85); g.add(rw);
+  const mk = (t: THREE.Texture) => [white, white, white, white, new THREE.MeshStandardMaterial({ map: t, roughness: 0.5 }), white];
+  const lw = new THREE.Mesh(wingGeo, mk(wl.texture)); lw.position.set(-2.9, 1.2, 0.85); g.add(lw);
+  const rw = new THREE.Mesh(wingGeo, mk(wr.texture)); rw.position.set(2.9, 1.2, 0.85); g.add(rw);
   for (const sx of [-1, 1]) {
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.18), blue); tip.position.set(sx * 5.55, 0.9, 0.85); g.add(tip);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.18), cyan); tip.position.set(sx * 5.55, 1.2, 0.85); g.add(tip);
   }
-  // fuselage side lettering
-  const sideTex = label('UNIVERSITY OF HAIFA', 1024, 96, '#1e40af', '#ffffff', 'bold 62px Inter, Arial, sans-serif');
+  // fuselage sides: Hebrew, English and Arabic, as in the logo
+  const sideTex = sideTexture();
   for (const sx of [-1, 1]) {
-    const side = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 0.42), new THREE.MeshBasicMaterial({ map: sideTex, side: THREE.DoubleSide }));
-    // face outwards (normal = +-x), text running along the fuselage, upright
+    const side = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 0.6), new THREE.MeshBasicMaterial({ map: sideTex }));
     const m4 = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, sx, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(sx, 0, 0));
     side.quaternion.setFromRotationMatrix(m4);
-    side.position.set(sx * 0.79, -0.7, 0.05);
+    side.position.set(sx * 0.775, -0.55, 0.0);
     g.add(side);
   }
-  // tail
-  const hstab = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.9, 0.12), white); hstab.position.set(0, -3.5, 0.2); g.add(hstab);
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 1.6), blue); fin.position.set(0, -3.4, 1.0); g.add(fin);
+  // tail: navy stabiliser, white fin with the mark on both sides
+  const hstab = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.9, 0.12), navy); hstab.position.set(0, -3.5, 0.2); g.add(hstab);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 1.7), white); fin.position.set(0, -3.4, 1.05); g.add(fin);
+  const finMat = new THREE.MeshBasicMaterial({ map: finTexture(), transparent: false });
+  for (const sx of [-1, 1]) {
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.25), finMat);
+    const m4 = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -sx, 0).multiplyScalar(-1), new THREE.Vector3(0, 0, 1), new THREE.Vector3(sx, 0, 0));
+    f.quaternion.setFromRotationMatrix(m4);
+    f.position.set(sx * 0.06, -3.4, 1.08); g.add(f);
+  }
+  useRealLogo((img) => {
+    for (const w of [wl, wr]) {
+      const x = w.canvas.getContext('2d')!;
+      const isR = w === wr, cx = isR ? 900 : 124;
+      x.fillStyle = '#ffffff'; x.fillRect(cx - 100, 20, 200, 152);
+      const s = Math.min(190 / img.width, 150 / img.height);
+      x.drawImage(img, cx - (img.width * s) / 2, 96 - (img.height * s) / 2, img.width * s, img.height * s);
+      w.texture.needsUpdate = true;
+    }
+    const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+    const x = c.getContext('2d')!; x.fillStyle = '#fff'; x.fillRect(0, 0, 512, 512);
+    const s = Math.min(480 / img.width, 480 / img.height);
+    x.drawImage(img, 256 - (img.width * s) / 2, 256 - (img.height * s) / 2, img.width * s, img.height * s);
+    finMat.map = tex(c); finMat.needsUpdate = true;
+  });
   // propeller
   const prop = new THREE.Group();
   const blade = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.22), dark); prop.add(blade);
@@ -212,12 +284,15 @@ function step(dt: number) {
 // ---------------- chase camera ----------------
 function chase() {
   if (!st) return;
-  const P = 72;                                   // camera pitch (deg from straight down)
-  const agl = Math.max(30, st.alt - st.floor);
-  const t = camFar ? 0.72 : 0.42;                 // where the plane sits along the camera ray
-  const camDist = agl / ((1 - t) * Math.cos(P * D2R));
+  // close chase camera: a fixed distance behind and above the plane, looking past it along the heading.
+  // The plane sits on the camera's centre line, so it stays in the middle of the screen at a steady size.
+  const P = 74;                                   // camera pitch (deg from straight down)
+  const agl = Math.max(20, st.alt - st.floor);
+  const behind = camFar ? 420 : 140;              // metres from camera to plane
+  const camAlt = agl + behind * Math.cos(P * D2R);
+  const camDist = camAlt / Math.cos(P * D2R);    // camera -> ground along the centre line
   // the point on the ground the camera looks at: ahead of the plane along its heading
-  const ahead = agl * Math.tan(P * D2R);
+  const ahead = (camDist - behind) * Math.sin(P * D2R);
   const lat = st.lat + (ahead * Math.cos(st.hdg * D2R)) / 110540;
   const lon = st.lon + (ahead * Math.sin(st.hdg * D2R)) / (111320 * Math.cos(st.lat * D2R));
   const H = map.getCanvas().clientHeight;
@@ -225,7 +300,7 @@ function chase() {
   const camPx = (0.5 / Math.tan(fov / 2)) * H;
   const mpp = (camDist * 0.98) / camPx;
   const zoom = Math.log2((40075016.686 * Math.cos(lat * D2R)) / (512 * mpp));
-  map.jumpTo({ center: [lon, lat], zoom: Math.max(11, Math.min(18, zoom)), bearing: st.hdg, pitch: P, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
+  map.jumpTo({ center: [lon, lat], zoom: Math.max(11, Math.min(19, zoom)), bearing: st.hdg, pitch: P, padding: { top: 0, bottom: 0, left: 0, right: 0 } });
 }
 
 // ---------------- start / stop ----------------

@@ -4,12 +4,14 @@
 //   D = (fill level - ground) * 10, fill level = lowest sea level that reaches the cell from the sea
 //   R = distance from today's shoreline / 20 m (illustration mode: erosion moves the shore inland)
 import type { FloodIndex, Chunk, Retreat } from './data';
+import { classicFactor } from './classic';
 
 export type FloodStyle = 'real' | 'illus' | 'classic';
 export interface ChunkData {
   meta: Chunk;
   E: Uint8Array; F: Uint16Array; R: Uint8Array;
   rowRetreat: Float32Array;   // shoreline retreat (m per m of sea level) for each row
+  rowClassic: Float32Array;   // same, with the original lab's per-place distances (classic view in 3D)
   minF: number; minRm: number; maxRetreat: number;
   seaFade: Uint8Array;
   seaDist: Uint8Array;       // sea cells: distance to land in cells (255 = far); land = 0
@@ -58,8 +60,13 @@ export class FloodGrid {
       }
       const rowRetreat = new Float32Array(C);
       let maxRetreat = 0;
-      for (let r = 0; r < C; r++) { rowRetreat[r] = this.retreatAt(meta.n - (r + 0.5) * this.res); maxRetreat = Math.max(maxRetreat, rowRetreat[r]); }
-      this.chunks.push({ meta, E, F, R, rowRetreat, minF, minRm: minR * 20, maxRetreat, seaFade: new Uint8Array(0), seaDist: seaDistance(E, C) });
+      const rowClassic = new Float32Array(C);
+      for (let r = 0; r < C; r++) {
+        const lat = meta.n - (r + 0.5) * this.res;
+        rowRetreat[r] = this.retreatAt(lat); rowClassic[r] = classicFactor(lat) * 1.15;
+        maxRetreat = Math.max(maxRetreat, rowRetreat[r], rowClassic[r]);
+      }
+      this.chunks.push({ meta, E, F, R, rowRetreat, rowClassic, minF, minRm: minR * 20, maxRetreat, seaFade: new Uint8Array(0), seaDist: seaDistance(E, C) });
       this.byKey.set(`${meta.row / C},${meta.col / C}`, k);
     });
   }
@@ -140,7 +147,7 @@ export class FloodTarget {
    * Returns indices of chunks whose image changed.
    */
   render(o: RenderOpts, visible: (k: number) => boolean = () => true): number[] {
-    const g = this.g, C = g.C, L = enc(o.level), illus = o.style === 'illus';
+    const g = this.g, C = g.C, L = enc(o.level), illus = o.style === 'illus' || o.style === 'classic', cls = o.style === 'classic';
     const lvl = L / 10 - 1;   // level rounded to the 0.1 m steps of the data
     const lut = o.sat ? LUTS.sat : LUTS.map, edge = o.sat ? EDGE.sat : EDGE.map;
     const beachA = Math.max(0, Math.min(1, (lvl - BEACH_M) / 0.7));
@@ -162,7 +169,7 @@ export class FloodTarget {
       const beach = beachA > 0;
       // pass 1: which cells are under water (2 = beach masked as sea in the elevation data)
       for (let r = 0; r < C; r++) {
-        const Rt = illus ? (lvl * ch.rowRetreat[r]) / 20 : -1;
+        const Rt = illus ? (lvl * (cls ? ch.rowClassic[r] : ch.rowRetreat[r])) / 20 : -1;
         const base = r * C;
         for (let c = 0; c < C; c++) {
           const i = base + c;
