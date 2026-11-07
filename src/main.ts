@@ -36,6 +36,7 @@ async function boot() {
   (await import('./research')).initDataCentres(grid, d.coastline);
   (await import('./poi')).initPois();
   M.applyMapLayers();
+  (await import('./labels')).initDeclutter();
   initUI(d.sites, d.climate, grid, { onPhoto: () => openPhoto(grid, d.sites), onLeavePhoto: leavePhoto });
   const pad = () => {
     const dock = document.getElementById('dock')!.getBoundingClientRect();
