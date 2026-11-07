@@ -8,6 +8,7 @@ import { fmt, meters } from './i18n';
 import { slrScenario, commitment2000y, type ScenarioId } from './science';
 import type { FloodGrid } from './flood';
 import { visible } from './layerstate';
+import { DC_FACTS, evidenceHtml } from './evidence';
 
 type Link = { t: string; u: string };
 const he = () => state.lang === 'he';
@@ -55,6 +56,17 @@ export const RESEARCH: { group: [string, string]; items: (Link & { note: [string
     { t: 'Li, Yang, Islam & Ren 2023 - Making AI less "thirsty" (arXiv)', u: 'https://arxiv.org/abs/2304.03271', note: ['The water footprint of AI', 'טביעת המים של בינה מלאכותית'] },
     { t: 'Ynet - Israel\'s new gold rush: data centres', u: 'https://www.ynetnews.com/business/article/hykex00l11ml', note: ['The Israeli data-centre boom', 'הבום של חוות השרתים בישראל'] },
   ] },
+  { group: ['Israel\'s coast - studies & official reports', 'חוף ישראל - מחקרים ודוחות רשמיים'], items: [
+    { t: 'State Comptroller 2020 - Government handling of coastal cliff erosion', u: 'https://library.mevaker.gov.il/sites/DigitalLibrary/Documents/2020/Shilton-2020/EN/2020-Shilton2020-102-Matzok-Taktzir-EN.pdf', note: ['45 km unstable cliff; Ashkelon cliff -22 m in 20 years; 8.6% of budget spent', 'מצוק לא יציב 45 ק״מ; מצוק אשקלון ‎-22 מ׳ ב־20 שנה; נוצלו 8.6% מהתקציב'] },
+    { t: 'Israel\'s national Mediterranean monitoring report 2024 (via Ynet)', u: 'https://www.ynetnews.com/environment/article/s15y8m10bl', note: ['+15 cm since 1992 (4.7 mm/yr)', '‎+15 ס״מ מאז 1992 (4.7 מ״מ בשנה)'] },
+    { t: 'Felsenstein & Lichter (Hebrew University) - flood areas under sea-level rise (via Hayadan)', u: 'https://hayadan.com/sea-cover-danger-in-israel-regarding-global-warming-3003116', note: ['27 km² at +1.5 m; Haifa 12.5%, Akko 11.2%', '27 קמ״ר ב־+1.5 מ׳; חיפה 12.5%, עכו 11.2%'] },
+    { t: 'Zviely & Klein 2004 - Coastal cliff retreat rates at Beit-Yannay', u: 'https://cris.haifa.ac.il/en/publications/coastal-cliff-retreat-rates-at-beit-yannay-israel-in-the-20th-cen/', note: ['~20 cm/yr, 1918-2000', '‎~20 ס״מ בשנה, 1918-2000'] },
+    { t: 'Galili et al. 2019 (PLOS ONE) - A submerged 7,000-year-old village and seawall', u: 'https://doi.org/10.1371/journal.pone.0222560', note: ['The oldest known defence against sea-level rise', 'ההגנה העתיקה ביותר הידועה מפני עליית הים'] },
+    { t: 'Galili et al. 2021 (Geosciences) - Caesarea Roman harbour and sea-level change', u: 'https://doi.org/10.3390/geosciences11080306', note: ['Storms, not earthquakes, wrecked the harbour', 'סערות, לא רעידות אדמה, הרסו את הנמל'] },
+    { t: 'Lev Bar-Or et al. 2023 (Environment & Health) - Haifa Bay air pollution and cancer', u: 'https://cris.iucc.ac.il/en/publications/associations-of-adolescence-exposure-to-industrial-air-pollution-/', note: ['2.19 million people; adjusted HR 1.16', '2.19 מיליון איש; יחס סיכון מתוקנן 1.16'] },
+    { t: 'Ministry of Environmental Protection - PRTR 2019 summary', u: 'https://www.gov.il/BlobFolder/news/prtr_2019_news/en/prtr_prtr_2019_ppt_eng.pdf', note: ['3 sources = ~70% of reported emissions', '3 מקורות = כ־70% מהפליטות המדווחות'] },
+    { t: 'Calcalist - Israel to cap new data centers at 200 MW', u: 'https://www.calcalistech.com/ctechnews/article/e0elh1nl2', note: ['Up to ~20% of electricity by 2030; 27,000 MW requested', 'עד כ־20% מהחשמל ב־2030; התבקשו 27,000 מגה־וואט'] },
+  ] },
   { group: ['Israel', 'ישראל'], items: [
     { t: 'Adam Teva V\'Din - Planners must tackle climate threats to beaches', u: 'https://adamteva.org.il/en/news_and_updates/3606/', note: ['Coastal planning in Israel', 'תכנון החוף בישראל'] },
     { t: 'Ynet - Israel\'s beaches are disappearing', u: 'https://www.ynetnews.com/environment/article/r13itilzze', note: ['Erosion & cliffs', 'סחף ומצוקים'] },
@@ -72,6 +84,7 @@ export const DATACENTRES: DataCentre[] = [
   { id: 'dc_tirat', lat: 32.762, lon: 34.972, status: 'existing', en: 'Tirat HaCarmel', he: 'טירת הכרמל', who: 'MedOne', src: { t: 'MedOne - sites in Israel (press)', u: 'https://business.mammothtimes.com/mammothtimes/article/businesnewswire-2026-1-21-medone-israels-biggest-data-center-platform-enterprise-colocation-assessment' } },
   { id: 'dc_hartuv', lat: 31.765, lon: 34.983, status: 'existing', en: 'Har Tuv industrial zone', he: 'אזור התעשייה הר טוב', who: 'AWS Israel (Tel Aviv region)', src: { t: 'Datacenters.com - Israel', u: 'https://www.datacenters.com/locations/israel' } },
   { id: 'dc_netanya', lat: 32.285, lon: 34.865, status: 'planned', en: 'Netanya (being examined)', he: 'נתניה (בבדיקה)', who: 'Rami Levy group, examining data centres on its land', src: { t: 'Ynet - Israel\'s data-centre gold rush', u: 'https://www.ynetnews.com/business/article/hykex00l11ml' } },
+  { id: 'dc_hadera', lat: 32.445, lon: 34.905, status: 'planned', en: 'Hadera (1,100 MW proposal)', he: 'חדרה (הצעה ל־1,100 מגה־וואט)', who: 'A proposed 1,100 MW campus - too big for the planned 200 MW cap', src: { t: 'Calcalist - Israel to cap new data centers at 200 MW', u: 'https://www.calcalistech.com/ctechnews/article/e0elh1nl2' } },
   { id: 'dc_kgat', lat: 31.6, lon: 34.77, status: 'planned', en: 'Kiryat Gat (being examined)', he: 'קריית גת (בבדיקה)', who: 'Rami Levy group, examining data centres on its land', src: { t: 'Ynet - Israel\'s data-centre gold rush', u: 'https://www.ynetnews.com/business/article/hykex00l11ml' } },
 ];
 
@@ -170,7 +183,8 @@ function openDC(d: DataCentre) {
   const v = assess(d.lon, d.lat);
   const H = he();
   const extra = `<p class="small"><b>${d.status === 'planned' ? (H ? 'מתוכנן / בבדיקה' : 'Planned / being examined') : (H ? 'קיים' : 'Existing')}</b> · ${esc(d.who)}</p>
-    <p class="muted small">${H ? 'מיקום משוער (ברמת עיר / אזור תעשייה) לפי רשימות פומביות' : 'Approximate location (city / industrial-zone level) from public listings'} · <a href="${d.src.u}" target="_blank" rel="noopener">${esc(d.src.t)} ↗</a></p>`;
+    <p class="muted small">${H ? 'מיקום משוער (ברמת עיר / אזור תעשייה) לפי רשימות פומביות' : 'Approximate location (city / industrial-zone level) from public listings'} · <a href="${d.src.u}" target="_blank" rel="noopener">${esc(d.src.t)} ↗</a></p>
+    ${evidenceHtml(DC_FACTS, H)}`;
   popup = new maplibregl.Popup({ maxWidth: '320px', className: 'rt-popup' }).setLngLat([d.lon, d.lat]).setHTML(verdictHtml(v, H ? d.he : d.en, extra)).addTo(map);
 }
 export function startChecking() {

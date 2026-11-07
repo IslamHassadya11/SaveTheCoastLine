@@ -7,6 +7,7 @@ import { state } from './state';
 import { assess, verdictHtml } from './research';
 import { showSheet } from './hotspots';
 import { visible, saveVisible } from './layerstate';
+import { EVIDENCE, evidenceHtml } from './evidence';
 
 type Link = { t: string; u: string };
 export type PoiCat = 'power' | 'desal' | 'ports' | 'emitters' | 'nature';
@@ -92,7 +93,7 @@ function card(p: Poi) {
   const head = `<div class="hs-kind" style="color:${c.color}">${c.icon} ${H ? c.he : c.en}</div><h3>${esc(H ? p.he : p.en)}</h3><p>${esc(H ? p.dhe : p.den)}</p>
     ${p.approx ? `<p class="hs-note">${H ? 'מיקום משוער' : 'Approximate location'}</p>` : ''}`;
   const risk = verdictHtml(v, H ? 'הסיכון מהים במקום הזה' : 'Sea risk at this spot', '', 'risk').replace(/<p class="muted small">[\s\S]*?<\/p><\/div>$/, '</div>');
-  return `<div class="hs-card">${head}${risk}
+  return `<div class="hs-card">${head}${evidenceHtml(EVIDENCE[p.id] ?? [], H)}${risk}
     <div class="hs-links"><b>${H ? 'מקורות' : 'Sources'}</b>${p.links.map((l) => `<a href="${l.u}" target="_blank" rel="noopener">${esc(l.t)} ↗</a>`).join('')}</div></div>`;
 }
 
