@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { FloodGrid, FloodTarget } from './flood';
 import { WATER } from './flood';
+import { ClassicLayer, classicFactor } from './classic';
 import type { Site } from './data';
 import { state, set, level, compareLevels } from './state';
 
@@ -30,6 +31,18 @@ let grid: FloodGrid;
 let sites: Site[];
 let coastline: GeoJSON.FeatureCollection;
 const markers: { site: Site; el: HTMLElement }[] = [];
+let classic: ClassicLayer;
+
+/** What the classic water layer should draw: one frame, or two split at the swipe line. */
+function classicFrames() {
+  const site = sites.find((x) => x.id === state.site);
+  const s = site ? { lat: site.lat, lon: site.lon } : undefined;
+  if (other && other.ready) {
+    const x = parseFloat(document.getElementById('swipe')?.style.left || '') || window.innerWidth / 2;
+    return [{ map, level: main.shown, clip: [0, x] as [number, number], site: s }, { map: other.m, level: other.shown, clip: [x, window.innerWidth] as [number, number], site: s }];
+  }
+  return [{ map, level: main.shown, site: s }];
+}
 
 function makeMap(container: HTMLElement, controls: boolean) {
   const m = new maplibregl.Map({
@@ -54,6 +67,7 @@ export function createMap(container: HTMLElement, g: FloodGrid, s: Site[], coast
   const site = sites.find((x) => x.id === state.site) ?? sites[5];
   map = makeMap(container, true);
   main = newView(map);
+  classic = new ClassicLayer(document.body, classicFrames);
   return new Promise((resolve) => {
     map.on('load', () => {
       setupLayers(main);
@@ -159,13 +173,17 @@ function animate(v: View) {
 export function shownLevel(which: 'main' | 'other' = 'main') { const v = which === 'main' ? main : other; return v ? v.shown : NaN; }
 
 function drawView(v: View) {
-  const m = v.m, L = v.shown, illus = state.style === 'illus', sat = state.basemap === 'sat';
-  for (const k of v.target.render({ level: L, style: state.style, sat })) {
+  const m = v.m, L = v.shown, sat = state.basemap === 'sat';
+  const cl = state.style === 'classic', illus = state.style === 'illus' || cl;
+  // classic view: the original lab's animated water is drawn on its own canvas instead of the data layer
+  if (v === main) { if (cl) classic.start(); else classic.stop(); }
+  m.setLayoutProperty('coast-today', 'visibility', cl ? 'none' : 'visible');
+  for (const k of v.target.render({ level: cl ? -99 : L, style: state.style, sat })) {
     const src = m.getSource(`flood-${k}`) as unknown as { play(): void; pause(): void } | undefined;
     if (src) { src.play(); src.pause(); }
   }
   // buildings: the part under water is replaced by a block of water, so they sink as the sea rises
-  const key = illus ? 'fi' : 'f';
+  const key = cl ? 'fc' : illus ? 'fi' : 'f';
   const wet: any = ['<', ['get', key], L];
   const depth: any = illus
     ? ['case', ['<', ['get', 'f'], L], ['-', L, ['get', 'e']], 999]   // eroded away: gone entirely
@@ -208,24 +226,26 @@ function scanBuildings(v: View) {
     const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
     if (!polys.length) continue;
     const tb = tileBounds(f._z, f._x, f._y);
-    const evals: { poly: GeoJSON.Position[][]; f: number; fi: number; e: number }[] = [];
+    const evals: { poly: GeoJSON.Position[][]; f: number; fi: number; fc: number; e: number }[] = [];
     let relevant = false;
     for (const poly of polys) {
       const ring = poly[0]; if (!ring || ring.length < 3) continue;
-      let cx = 0, cy = 0, minF = 99, minFi = 99, minE = 99;
+      let cx = 0, cy = 0, minF = 99, minFi = 99, minFc = 99, minE = 99;
       for (const [x, y] of ring) {
         cx += x; cy += y;
         const c = grid.sample(x, y);
         if (c && !c.sea) {
           if (c.fill < minF) minF = c.fill;
           if (c.fillIllus < minFi) minFi = c.fillIllus;
+          const fc = c.dist / classicFactor(y);
+          if (fc < minFc) minFc = fc;
           if (c.ground < minE) minE = c.ground;
-        } else if (c && c.sea) { minF = Math.min(minF, 0); minFi = Math.min(minFi, 0); }
+        } else if (c && c.sea) { minF = Math.min(minF, 0); minFi = Math.min(minFi, 0); minFc = Math.min(minFc, 0); }
       }
       cx /= ring.length; cy /= ring.length;
       if (cx < tb.w || cx >= tb.e || cy > tb.n || cy <= tb.s) continue; // piece belongs to a neighbour tile
-      if (minFi < BLD_MAX) relevant = true;
-      evals.push({ poly, f: minF, fi: Math.min(minF, minFi), e: minE === 99 ? Math.max(0, minF) : minE });
+      if (minFi < BLD_MAX || minFc < BLD_MAX) relevant = true;
+      evals.push({ poly, f: minF, fi: Math.min(minF, minFi), fc: Math.min(minF, minFc), e: minE === 99 ? Math.max(0, minF) : minE });
     }
     if (!relevant && !v.replaced.has(id)) continue;
     v.replaced.add(id);
@@ -236,7 +256,7 @@ function scanBuildings(v: View) {
       v.keys.add(key); added++;
       v.feats.push({
         type: 'Feature', geometry: { type: 'Polygon', coordinates: ev.poly },
-        properties: { h: f.properties.render_height ?? 4, b: f.properties.render_min_height ?? 0, f: ev.f, fi: ev.fi, e: ev.e },
+        properties: { h: f.properties.render_height ?? 4, b: f.properties.render_min_height ?? 0, f: ev.f, fi: ev.fi, fc: ev.fc, e: ev.e },
       });
     }
   }

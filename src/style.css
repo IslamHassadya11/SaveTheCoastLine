@@ -280,7 +280,11 @@ html[dir='rtl'] .toggle input:checked + .sw::after { transform: translateX(-16px
 .lg-row:has(.lg-line) { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
 .lg-sw.sea { background: #9ebdff; }
 .lg-sw.sea.sat { background: #2a6f9e; }
-.lg-sw.foam { background: #f0faff; box-shadow: inset 0 0 0 1px #9ebdff; }
+.lg-sw.foam { background: #f0faff; box-shadow: inset 0 0 0 1px #38bdf8; }
+.lg-sw.classic { background: linear-gradient(90deg, #0d5c91, #1ca3ec 60%, #5ad2f4); }
+.lg-line.amber { border-top-color: #fbbf24; }
+#classicCanvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+#classicCanvas[hidden], body.photo-on #classicCanvas { display: none; }
 .lg-sw.bld { background: #f87171; }
 .lg-line { width: 14px; height: 0; border-top: 2px dashed #9fb8e8; display: inline-block; }
 .lg-line.sat { border-top-color: #fff; }

@@ -5,7 +5,7 @@
 //   R = distance from today's shoreline / 20 m (illustration mode: erosion moves the shore inland)
 import type { FloodIndex, Chunk, Retreat } from './data';
 
-export type FloodStyle = 'real' | 'illus';
+export type FloodStyle = 'real' | 'illus' | 'classic';
 export interface ChunkData {
   meta: Chunk;
   E: Uint8Array; F: Uint16Array; R: Uint8Array;
@@ -30,7 +30,8 @@ function ramp(a: string, b: string, alpha: number) {
   return out;
 }
 const LUTS = { map: ramp(WATER.map.shallow, WATER.map.deep, WATER.map.alpha), sat: ramp(WATER.sat.shallow, WATER.sat.deep, WATER.sat.alpha) };
-const FOAM = rgba(240, 250, 255, 235);
+// edge of the water: a slightly deeper blue (a white line looked like noise around every dry patch)
+const EDGE = { map: rgba(92, 132, 222, 245), sat: rgba(10, 45, 75, 235) };
 
 export interface RenderOpts { level: number; style: FloodStyle; sat: boolean }
 
@@ -127,7 +128,7 @@ export class FloodTarget {
   /** Paint every chunk for sea level `o.level`. Returns indices of chunks whose image changed. */
   render(o: RenderOpts): number[] {
     const g = this.g, C = g.C, L = enc(o.level), illus = o.style === 'illus';
-    const lut = o.sat ? LUTS.sat : LUTS.map;
+    const lut = o.sat ? LUTS.sat : LUTS.map, edge = o.sat ? EDGE.sat : EDGE.map;
     const changed: number[] = [];
     const wet = this.wet;
     g.chunks.forEach((ch, k) => {
@@ -156,7 +157,7 @@ export class FloodTarget {
           if (!wet[i]) { px[i] = 0; continue; }
           const dryN = (c > 0 && !wet[i - 1] && E[i - 1] !== 255) || (c < C - 1 && !wet[i + 1] && E[i + 1] !== 255) ||
             (r > 0 && !wet[i - C] && E[i - C] !== 255) || (r < C - 1 && !wet[i + C] && E[i + C] !== 255);
-          px[i] = dryN ? FOAM : lut[Math.max(0, Math.min(63, L - E[i]))];
+          px[i] = dryN ? edge : lut[Math.max(0, Math.min(63, L - E[i]))];
         }
       }
       lay.ctx.putImageData(lay.img, 0, 0);

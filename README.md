@@ -18,6 +18,7 @@ elevation data and real buildings, and see what our own choices change.
 - **Two ways to draw the sea**: *Real elevation* (only land below the water level floods) and *Illustration*, which also pushes the
   shoreline inland by erosion - 12 to 220 m per metre of rise depending on the beach slope, as in the original lab - so the change is
   visible even at realistic levels. Flooded land uses the sea's own colour with a white water's-edge line, and a dashed line marks today's coastline.
+- **Classic view**: the original Rising Tides water drawn on the new map - the whole coastline sliding inland, rivers filling, waves rolling in, the amber 2026 coastline and the "+N m inland" tag - as a third option next to Real elevation and Illustration.
 - **3D buildings sink as you drag the slider**: water climbs the walls, and a building disappears once it is fully under.
 - **Storms on top** (high tide → extreme storm) and **Compare futures**: a swipe divider with net zero (SSP1-1.9) on the left and
   fossil fuels (SSP5-8.5) on the right, plus the land, buildings and roads saved.
@@ -26,7 +27,7 @@ elevation data and real buildings, and see what our own choices change.
 - **What can we do?** calculator: commuting, flights, food and home electricity for me / our seminar / the university / Israel / the world → tonnes CO₂, Arctic sea ice kept, seawater kept out of the ocean, Israeli coast kept dry.
 - **Data panel**: Hadera tide gauge (measured since 1995) joined to IPCC projections; Mauna Loa CO₂.
 - **Present mode**: an 8-step story for the seminar (arrow keys to move).
-- **Classic lab** (`/classic/`): the original Rising Tides page - animated Leaflet flood map, 3D coastal twin, action lab and seminar sites - kept as it was.
+- **Classic lab** (`/classic/`): the original Rising Tides page - animated Leaflet flood map, 3D coastal twin, action lab and seminar sites - kept as it was, with an "Open the new app" button in its header.
 - **English / עברית** with right-to-left layout. Shareable links (the URL keeps the view).
 
 ## Run it
