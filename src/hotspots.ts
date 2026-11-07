@@ -179,6 +179,9 @@ function render() {
   sheet.innerHTML = `<button class="dr-close hs-x" aria-label="close">✕</button>${current ? card(current) : custom!()}`;
   sheet.querySelector('.hs-x')!.addEventListener('click', close);
 }
+/** Open a place's card by id (used by the guided tours). */
+export function openHotspotById(id: string) { const h = HOTSPOTS.find((x) => x.id === id); if (h) open(h); }
+export function closeSheet() { close(); }
 export function refreshHotspotPopup() { if (current || custom) render(); }
 export function relabelHotspots() {
   for (const { h, el } of markers) el.querySelector('.hs-label')!.textContent = state.lang === 'he' ? h.he : h.en;
