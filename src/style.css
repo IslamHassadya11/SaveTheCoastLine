@@ -37,6 +37,7 @@ a { color: var(--accent); }
 .ic { flex: none; display: block; }
 
 #map, #photo { position: fixed; inset: 0; }
+#map { background: #9ebdff; }   /* sea colour behind the map, never a black flash */
 #photo { z-index: 1; background: #000; }
 #photo[hidden] { display: none; }
 

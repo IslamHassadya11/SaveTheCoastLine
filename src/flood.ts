@@ -12,6 +12,7 @@ export interface ChunkData {
   rowRetreat: Float32Array;   // shoreline retreat (m per m of sea level) for each row
   minF: number; minRm: number; maxRetreat: number;
   seaFade: Uint8Array;
+  seaDist: Uint8Array;       // sea cells: distance to land in cells (255 = far); land = 0
 }
 export interface CellInfo { ground: number; fill: number; sea: boolean; dist: number; retreat: number; fillIllus: number }
 
@@ -58,7 +59,7 @@ export class FloodGrid {
       const rowRetreat = new Float32Array(C);
       let maxRetreat = 0;
       for (let r = 0; r < C; r++) { rowRetreat[r] = this.retreatAt(meta.n - (r + 0.5) * this.res); maxRetreat = Math.max(maxRetreat, rowRetreat[r]); }
-      this.chunks.push({ meta, E, F, R, rowRetreat, minF, minRm: minR * 20, maxRetreat, seaFade: new Uint8Array(0) });
+      this.chunks.push({ meta, E, F, R, rowRetreat, minF, minRm: minR * 20, maxRetreat, seaFade: new Uint8Array(0), seaDist: seaDistance(E, C) });
       this.byKey.set(`${meta.row / C},${meta.col / C}`, k);
     });
   }
@@ -91,7 +92,7 @@ export class FloodGrid {
 
   /** Photoreal mode: same water, plus the sea near the shore so the whole surface rises. */
   renderPhoto(ch: ChunkData, o: RenderOpts, out: HTMLCanvasElement) {
-    if (!ch.seaFade.length) ch.seaFade = seaFade(ch.E, this.C);
+    if (!ch.seaFade.length) ch.seaFade = fadeFrom(ch.seaDist, ch.E);
     const C = this.C; out.width = C; out.height = C;
     const ctx = out.getContext('2d')!;
     const img = ctx.createImageData(C, C);
@@ -111,8 +112,12 @@ export class FloodGrid {
 }
 
 /** One set of canvases (one per chunk) that a map displays. */
+// Beaches and surf zones are often masked as water in the elevation model, so the base map's sand
+// shows through. Sea cells this close to land are treated as ~1 m high beach.
+const SHORE_CELLS = 12, BEACH_M = 0.8;
+
 export class FloodTarget {
-  layers: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; img: ImageData; px: Uint32Array; empty: boolean }[] = [];
+  layers: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; img: ImageData; px: Uint32Array; empty: boolean; key: string }[] = [];
   private wet: Uint8Array;
   constructor(private g: FloodGrid) {
     const C = g.C;
@@ -121,32 +126,48 @@ export class FloodTarget {
       const canvas = document.createElement('canvas'); canvas.width = C; canvas.height = C;
       const ctx = canvas.getContext('2d')!;
       const img = ctx.createImageData(C, C);
-      this.layers.push({ canvas, ctx, img, px: new Uint32Array(img.data.buffer), empty: false });
+      this.layers.push({ canvas, ctx, img, px: new Uint32Array(img.data.buffer), empty: false, key: '' });
     }
   }
 
-  /** Paint every chunk for sea level `o.level`. Returns indices of chunks whose image changed. */
-  render(o: RenderOpts): number[] {
+  /** Forget what was drawn, e.g. after the graphics context was reset. */
+  invalidate() { for (const l of this.layers) l.key = ''; }
+
+  /**
+   * Paint the chunks for sea level `o.level`. Only chunks for which `visible(k)` is true are painted now;
+   * the rest are left for later (call again after the map moves). A chunk whose picture would not change
+   * is skipped, so dragging a slider uploads as little as possible to the graphics card.
+   * Returns indices of chunks whose image changed.
+   */
+  render(o: RenderOpts, visible: (k: number) => boolean = () => true): number[] {
     const g = this.g, C = g.C, L = enc(o.level), illus = o.style === 'illus';
+    const lvl = L / 10 - 1;   // level rounded to the 0.1 m steps of the data
     const lut = o.sat ? LUTS.sat : LUTS.map, edge = o.sat ? EDGE.sat : EDGE.map;
+    const beachA = Math.max(0, Math.min(1, (lvl - BEACH_M) / 0.7));
+    const shore = ((lut[0] & 0xffffff) | (Math.round(((lut[0] >>> 24) & 255) * beachA) << 24)) >>> 0;
+    const key = `${L}|${o.style}|${o.sat}`;
     const changed: number[] = [];
     const wet = this.wet;
     g.chunks.forEach((ch, k) => {
       const lay = this.layers[k];
-      const none = ch.minF >= L && (!illus || ch.minRm >= o.level * ch.maxRetreat);
+      if (lay.key === key || !visible(k)) return;
+      lay.key = key;
+      const none = lvl < BEACH_M && ch.minF >= L && (!illus || ch.minRm >= lvl * ch.maxRetreat);
       if (none) {
         if (!lay.empty) { lay.px.fill(0); lay.ctx.putImageData(lay.img, 0, 0); lay.empty = true; changed.push(k); }
         return;
       }
       lay.empty = false;
-      const { E, F, R } = ch, px = lay.px;
-      // pass 1: which cells are under water
+      const { E, F, R, seaDist } = ch, px = lay.px;
+      const beach = beachA > 0;
+      // pass 1: which cells are under water (2 = beach masked as sea in the elevation data)
       for (let r = 0; r < C; r++) {
-        const Rt = illus ? (o.level * ch.rowRetreat[r]) / 20 : -1;
+        const Rt = illus ? (lvl * ch.rowRetreat[r]) / 20 : -1;
         const base = r * C;
         for (let c = 0; c < C; c++) {
           const i = base + c;
-          wet[i] = E[i] !== 255 && (F[i] < L || R[i] < Rt) ? 1 : 0;
+          if (E[i] === 255) wet[i] = beach && seaDist[i] <= SHORE_CELLS ? 2 : 0;
+          else wet[i] = F[i] < L || R[i] < Rt ? 1 : 0;
         }
       }
       // pass 2: colour, with a foam line where the water meets dry land
@@ -155,6 +176,7 @@ export class FloodTarget {
         for (let c = 0; c < C; c++) {
           const i = base + c;
           if (!wet[i]) { px[i] = 0; continue; }
+          if (wet[i] === 2) { px[i] = shore; continue; }
           const dryN = (c > 0 && !wet[i - 1] && E[i - 1] !== 255) || (c < C - 1 && !wet[i + 1] && E[i + 1] !== 255) ||
             (r > 0 && !wet[i - C] && E[i - C] !== 255) || (r < C - 1 && !wet[i + C] && E[i + C] !== 255);
           px[i] = dryN ? edge : lut[Math.max(0, Math.min(63, L - E[i]))];
@@ -167,8 +189,8 @@ export class FloodTarget {
   }
 }
 
-// Alpha for sea cells, 255 at the shoreline fading to 0 about 1.5 km offshore (BFS distance).
-function seaFade(E: Uint8Array, C: number) {
+// Distance (in cells, up to 50) from each sea cell to the nearest land cell; land = 0, far sea = 255.
+function seaDistance(E: Uint8Array, C: number) {
   const D = 50;
   const dist = new Uint8Array(E.length).fill(255);
   const q = new Int32Array(E.length); let qh = 0, qt = 0;
@@ -180,7 +202,11 @@ function seaFade(E: Uint8Array, C: number) {
     const nb = [c > 0 ? i - 1 : -1, c < C - 1 ? i + 1 : -1, r > 0 ? i - C : -1, r < C - 1 ? i + C : -1];
     for (const j of nb) if (j >= 0 && dist[j] > d + 1) { dist[j] = d + 1; q[qt++] = j; }
   }
+  return dist;
+}
+// Alpha for sea cells: 255 at the shoreline fading to 0 about 1.5 km offshore.
+function fadeFrom(dist: Uint8Array, E: Uint8Array) {
   const out = new Uint8Array(E.length);
-  for (let i = 0; i < E.length; i++) if (E[i] === 255) out[i] = dist[i] > D ? 0 : Math.round(255 * (1 - dist[i] / D));
+  for (let i = 0; i < E.length; i++) if (E[i] === 255) out[i] = dist[i] > 50 ? 0 : Math.round(255 * (1 - dist[i] / 50));
   return out;
 }

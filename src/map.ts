@@ -22,6 +22,7 @@ interface View {
   replaced: Set<number>; keys: Set<string>; feats: GeoJSON.Feature[];
   shown: number; goal: number; raf: number;
   tz: number;   // tile zoom the collected buildings came from
+  lastDraw: number; pending: number; lastBld: number; bldKey: string; bldPending: number;
 }
 
 export let map: maplibregl.Map;
@@ -50,7 +51,8 @@ function makeMap(container: HTMLElement, controls: boolean) {
     center: [34.85, 32.35], zoom: 8.4, minZoom: 7, maxZoom: 18.5, maxPitch: 80,
     maxBounds: [[33.6, 30.9], [36.2, 33.8]],
     attributionControl: controls ? { compact: true } : false,
-    canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true },
+    // no preserveDrawingBuffer: it costs graphics memory on every frame (snapshots use the render event instead)
+    canvasContextAttributes: { antialias: true },
   } as any);
   if (controls) {
     m.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
@@ -59,7 +61,7 @@ function makeMap(container: HTMLElement, controls: boolean) {
   return m;
 }
 function newView(m: maplibregl.Map): View {
-  return { m, target: grid.newTarget(), ready: false, replaced: new Set(), keys: new Set(), feats: [], shown: NaN, goal: 0, raf: 0, tz: 0 };
+  return { m, target: grid.newTarget(), ready: false, replaced: new Set(), keys: new Set(), feats: [], shown: NaN, goal: 0, raf: 0, tz: 0, lastDraw: 0, pending: 0, lastBld: 0, bldKey: '', bldPending: 0 };
 }
 
 export function createMap(container: HTMLElement, g: FloodGrid, s: Site[], coast: GeoJSON.FeatureCollection): Promise<void> {
@@ -77,7 +79,8 @@ export function createMap(container: HTMLElement, g: FloodGrid, s: Site[], coast
       if (state.view === '3d') enter3D(false);
       map.on('click', (e) => onClick(main, e));
       map.on('idle', () => scanBuildings(main));
-      map.on('moveend', () => scanBuildings(main));
+      map.on('moveend', () => { scanBuildings(main); paintFlood(main); });
+      guardContext(main);
       map.on('move', () => { if (other) syncCam(map, other.m); });
       resolve();
       if (location.hash.includes('site=')) flyToSite(site, false);
@@ -172,16 +175,47 @@ function animate(v: View) {
 /** The level a map is currently showing (mid-animation included). */
 export function shownLevel(which: 'main' | 'other' = 'main') { const v = which === 'main' ? main : other; return v ? v.shown : NaN; }
 
-function drawView(v: View) {
-  const m = v.m, L = v.shown, sat = state.basemap === 'sat';
-  const cl = state.style === 'classic', illus = state.style === 'illus' || cl;
+// Redraws are capped (about 15 a second for water, 5 for buildings) and only touch what is on screen:
+// re-uploading the whole coast's water images every frame can make the browser reset its graphics.
+const FRAME_MS = 66, BLD_MS = 200;
+function drawView(v: View, force = false) {
+  const now = performance.now();
+  if (!force && now - v.lastDraw < FRAME_MS) {
+    if (!v.pending) v.pending = window.setTimeout(() => { v.pending = 0; drawView(v, true); }, FRAME_MS - (now - v.lastDraw));
+    return;
+  }
+  v.lastDraw = now;
+  paintFlood(v);
+  paintBuildings(v);
+}
+
+function paintFlood(v: View) {
+  const m = v.m, cl = state.style === 'classic';
   // classic view: the original lab's animated water is drawn on its own canvas instead of the data layer
   if (v === main) { if (cl) classic.start(); else classic.stop(); }
   m.setLayoutProperty('coast-today', 'visibility', cl ? 'none' : 'visible');
-  for (const k of v.target.render({ level: cl ? -99 : L, style: state.style, sat })) {
+  const b = m.getBounds();
+  const pw = (b.getEast() - b.getWest()) * 0.3, ph = (b.getNorth() - b.getSouth()) * 0.3;
+  const W = b.getWest() - pw, E = b.getEast() + pw, S = b.getSouth() - ph, N = b.getNorth() + ph;
+  const onScreen = (k: number) => { const c = grid.chunks[k].meta; return c.e > W && c.w < E && c.n > S && c.s < N; };
+  for (const k of v.target.render({ level: cl ? -99 : v.shown, style: state.style, sat: state.basemap === 'sat' }, onScreen)) {
     const src = m.getSource(`flood-${k}`) as unknown as { play(): void; pause(): void } | undefined;
     if (src) { src.play(); src.pause(); }
   }
+  m.triggerRepaint();
+}
+
+function paintBuildings(v: View, force = false) {
+  const m = v.m, L = v.shown, sat = state.basemap === 'sat';
+  const cl = state.style === 'classic', illus = state.style === 'illus' || cl;
+  const bkey = `${state.style}|${sat}|${Math.round(L * 50)}`;
+  if (bkey === v.bldKey) return;
+  const now = performance.now();
+  if (!force && now - v.lastBld < BLD_MS) {
+    if (!v.bldPending) v.bldPending = window.setTimeout(() => { v.bldPending = 0; paintBuildings(v, true); }, BLD_MS - (now - v.lastBld));
+    return;
+  }
+  v.lastBld = now; v.bldKey = bkey;
   // buildings: the part under water is replaced by a block of water, so they sink as the sea rises
   const key = cl ? 'fc' : illus ? 'fi' : 'f';
   const wet: any = ['<', ['get', key], L];
@@ -198,6 +232,21 @@ function drawView(v: View) {
   m.setPaintProperty('fbld-water', 'fill-extrusion-height', ['max', 0.3, depth]);
   m.setPaintProperty('fbld-water', 'fill-extrusion-color', sat ? WATER.sat.shallow : WATER.map.shallow);
   m.triggerRepaint();
+}
+
+/** If the browser resets the graphics context, redraw everything once it is back. */
+function guardContext(v: View) {
+  v.m.on('webglcontextlost', () => console.warn('Graphics context lost - waiting for the browser to restore it'));
+  v.m.on('webglcontextrestored', () => {
+    v.target.invalidate(); v.bldKey = '';
+    grid.chunks.forEach((_, k) => { const src = v.m.getSource(`flood-${k}`) as any; if (src) src.texture = null; });
+    drawView(v, true);
+  });
+}
+
+/** A PNG of the main map (taken right after a fresh frame, as the drawing buffer is not preserved). */
+export function snapshot(): Promise<string> {
+  return new Promise((res) => { map.once('render', () => res(map.getCanvas().toDataURL('image/png'))); map.triggerRepaint(); });
 }
 
 // ---------------- buildings ----------------
@@ -367,7 +416,8 @@ export function setCompare(on: boolean, container: HTMLElement) {
     syncCam(map, m);
     m.on('move', () => syncCam(m, map));
     m.on('idle', () => scanBuildings(v));
-    m.on('moveend', () => scanBuildings(v));
+    m.on('moveend', () => { scanBuildings(v); paintFlood(v); });
+    guardContext(v);
     m.on('click', (e) => onClick(v, e));
     updateFlood(true);
   });
