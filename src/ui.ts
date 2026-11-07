@@ -11,12 +11,12 @@ import { lineChart } from './charts';
 import type { Site, Climate } from './data';
 import type { FloodGrid } from './flood';
 import * as M from './map';
-import { startTour, startOrbit, startDrone, stopFlight, onFlightChange, flightMode } from './fly';
+import { startOrbit, startDrone, stopFlight, onFlightChange, flightMode } from './fly';
 import type { FlightState } from './plane';
 // three.js + the plane load only when someone flies
 let P: typeof import('./plane') | null = null;
 const flying = () => !!P && P.flying();
-import { relabelHotspots, refreshHotspotPopup, applyHotspots, REPORTS, HOTSPOTS } from './hotspots';
+import { relabelHotspots, refreshHotspotPopup, applyHotspots, REPORTS, HOTSPOTS, openHotspotById, closeSheet } from './hotspots';
 import { CATS, poiCount, applyPois, relabelPois } from './poi';
 import { visible as lv, saveVisible } from './layerstate';
 import { renderLearn, initLearn } from './learn';
@@ -108,7 +108,8 @@ function renderPlacebar() {
     <span class="pb-sep"></span>
     <button class="pb-btn ${fm === 'orbit' ? 'on' : ''}" data-act="orbit">${icon('orbit', 16)}<span>${t('orbit')}</span></button>
     <button class="pb-btn ${fm === 'drone' ? 'on' : ''}" data-act="drone">${icon('drone', 16)}<span>${t('drone')}</span></button>
-    <button class="pb-btn plane-btn ${flying() ? 'on' : ''}" data-act="plane">${icon('plane', 16)}<span>${t('fly_plane')}</span></button>
+    <button class="pb-btn plane-btn ${flying() && tourKind === 'free' ? 'on' : ''}" data-act="plane">${icon('plane', 16)}<span>${t('fly_plane')}</span></button>
+    <button class="pb-btn ${flying() && tourKind === 'train' ? 'on' : ''}" data-act="train">${icon('train', 16)}<span>${t('ride_train')}</span></button>
     ${fm === 'drone' ? `<div class="drone-help">${t('drone_help')}</div>` : ''}`;
   const tb = document.querySelector('[data-act="tour"] span'); if (tb) tb.textContent = fm === 'tour' ? t('tour_stop') : t('tour');
 }
@@ -723,9 +724,13 @@ function bindGlobal() {
       case 'about': set({ panel: 'about' }); break;
       case 'present': present(true); break;
       case 'tour':
-        if (flightMode() === 'tour') stopFlight();
-        else { if (state.view === '2d') { set({ view: '3d' }); M.enter3D(false); } startTour(sites, (s) => { if (s.id !== state.site) { state.site = s.id; renderPlacebar(); M.highlightMarker(); } }); }
-        renderPlacebar(); break;
+        if (flying()) endPlane(); else beginPlane('tour');
+        break;
+      case 'train':
+        if (flying()) endPlane(); else beginPlane('train');
+        break;
+      case 'auto-pause': if (P?.autoState()) { const a = P.autoState()!; P.pauseAuto(!a.paused); clearTimeout(autoTimer); updAutoBtn(); } break;
+      case 'auto-next': clearTimeout(autoTimer); closeSheet(); P?.resumeAuto(); updAutoBtn(); break;
       case 'orbit':
         if (state.view === 'photo') { import('./photoreal').then((P) => P.photoOrbit(!P.photoOrbiting())); break; }
         if (flightMode() === 'orbit') stopFlight();
@@ -806,18 +811,74 @@ function nudgeTime(dir: number) {
   if (state.driver === 'manual') set({ manual: Math.max(0, Math.min(20, Math.round((state.manual + dir * 0.5) * 10) / 10)) });
   else if (!state.longTerm) set({ year: Math.max(2020, Math.min(2150, state.year + dir * 5)) });
 }
-async function beginPlane() {
+let tourKind: 'free' | 'tour' | 'train' = 'free';
+let autoTimer = 0;
+let rail: { path: [number, number][]; stations: { en: string; he: string; lat: number; lon: number; i: number }[]; fill: Float32Array } | null = null;
+function updAutoBtn() {
+  const b = document.querySelector('[data-act="auto-pause"]'); const a = P?.autoState();
+  if (b && a) b.textContent = a.paused ? t('tour_go') : t('tour_pause');
+}
+/** Coast tour path: just offshore of every place, north to south, densified. */
+function coastPath(): [number, number][] {
+  const pts = sites.map((s) => [s.lon - 0.012, s.lat] as [number, number]);
+  const out: [number, number][] = [];
+  for (let i = 0; i < pts.length - 1; i++) for (let k = 0; k < 10; k++) {
+    const f = k / 10; out.push([pts[i][0] + (pts[i + 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * f]);
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+async function loadRail() {
+  const r = rail ?? await (await fetch(import.meta.env.BASE_URL + 'data/rail.json')).json();   // flood levels recomputed each ride (view may change)
+  const fill = new Float32Array(r.path.length);
+  r.path.forEach(([lon, lat]: [number, number], i: number) => {
+    const c = grid.sample(lon, lat);
+    fill[i] = !c ? 99 : c.sea ? 0 : state.style === 'real' ? c.fill : c.fillIllus;
+  });
+  rail = { path: r.path, stations: r.stations, fill };
+  return rail;
+}
+function railStrip() {
+  if (!rail) return '';
+  const n = rail.fill.length, step = Math.max(1, Math.floor(n / 240));
+  const col = (f: number) => (f < 1 ? '#e11d48' : f < 2 ? '#f97316' : f < 5 ? '#facc15' : f < 10 ? '#a3e635' : '#334155');
+  let segs = '';
+  for (let i = 0; i < n; i += step) { let m = 99; for (let j = i; j < Math.min(n, i + step); j++) m = Math.min(m, rail.fill[j]); segs += `<i style="background:${col(m)}"></i>`; }
+  const ticks = rail.stations.map((s) => `<b style="left:${(s.i / (n - 1)) * 100}%" title="${esc(state.lang === 'he' ? s.he : s.en)}"></b>`).join('');
+  return `<div class="rail-strip"><div class="rs-bar">${segs}</div>${ticks}<span class="rs-pos" id="rs-pos"></span></div>
+    <div class="legend-inline rs-leg"><span><i style="background:#e11d48"></i>${t('rs_l1')}</span><span><i style="background:#f97316"></i>1–2 m</span><span><i style="background:#facc15"></i>2–5 m</span><span><i style="background:#a3e635"></i>5–10 m</span><span><i style="background:#334155"></i>${t('rs_safe')}</span></div>`;
+}
+function stationCard(k: number) {
+  if (!rail) return;
+  const st = rail.stations[k], H = state.lang === 'he';
+  let m = 99; const span = 12;
+  for (let j = Math.max(0, st.i - span); j <= Math.min(rail.fill.length - 1, st.i + span); j++) m = Math.min(m, rail.fill[j]);
+  const L = level();
+  const near = HOTSPOTS.filter((h) => h.kind === 'risk').map((h) => ({ h, d: Math.hypot((h.lon - st.lon) * 94000, (h.lat - st.lat) * 110540) })).sort((a, b) => a.d - b.d)[0];
+  const status = m >= 22 ? t('st_safe') : m < L ? t('st_under', { m: meters(L - m, 1).replace('+', '') }) : t('st_reach', { m: meters(Math.max(0, m), 1) });
+  $('#tr-stop').innerHTML = `<div class="tr-name">${icon('train', 16)} ${esc(H ? st.he : st.en)}</div>
+    <div class="tr-status ${m < L ? 'wet' : m < 5 ? 'warn' : 'ok'}">${status}</div>
+    ${near && near.d < 6000 ? `<button class="btn" data-hs="${near.h.id}">${t('st_evidence', { p: H ? near.h.he : near.h.en })}</button>` : ''}`;
+  $('#tr-stop').querySelector<HTMLButtonElement>('[data-hs]')?.addEventListener('click', (e) => { P?.pauseAuto(true); clearTimeout(autoTimer); updAutoBtn(); openHotspotById((e.currentTarget as HTMLElement).dataset.hs!); });
+}
+async function beginPlane(kind: 'free' | 'tour' | 'train' = 'free') {
   stopFlight();
   P ??= await import('./plane');
   if (state.view === 'photo') return;
   if (state.view === '2d') { M.enter3D(false); set({ view: '3d' }); }
   set({ panel: null });
+  tourKind = kind;
   document.body.classList.add('flying');
+  document.body.classList.toggle('auto-tour', kind !== 'free');
+  if (kind === 'train') await loadRail();
   const hud = $('#flight');
   hud.hidden = false;
+  const title = kind === 'train' ? `${icon('train', 16)} ${t('tr_title')}` : kind === 'tour' ? `${icon('plane', 16)} ${t('tour_title')}` : `${icon('plane', 16)} ${t('fl_title')}`;
   hud.innerHTML = `
-    <div class="fl-top"><b>${icon('plane', 16)} ${t('fl_title')}</b><span class="grow"></span>
-      <button class="btn" data-act="plane-cam">${t('fl_cam')}</button><button class="btn primary" data-act="plane-exit">${t('fl_exit')}</button></div>
+    <div class="fl-top"><b>${title}</b><span class="grow"></span>
+      ${kind !== 'free' ? `<button class="btn" data-act="auto-pause">${t('tour_pause')}</button><button class="btn" data-act="auto-next">${t('tour_next')}</button>` : ''}
+      <button class="btn" data-act="plane-cam">${t('fl_cam')}</button><button class="btn primary" data-act="plane-exit">${kind === 'free' ? t('fl_exit') : t('tour_exit')}</button></div>
+    ${kind === 'train' ? `<div id="tr-stop" class="tr-stop"></div>${railStrip()}` : ''}
     <div class="fl-stats">
       <div><span>${t('fl_speed')}</span><b id="fl-v"></b></div><div><span>${t('fl_alt')}</span><b id="fl-alt"></b></div>
       <div><span>${t('fl_hdg')}</span><b id="fl-hdg"></b></div><div><span>${t('fl_thr')}</span><i class="fl-thr"><i id="fl-thr"></i></i></div></div>
@@ -826,12 +887,12 @@ async function beginPlane() {
       : state.longTerm ? `<span>${t('in_2000y')}</span>`
       : `<span>${t('year')}</span><input type="range" id="fl-time" min="2020" max="2150" step="1" value="${state.year}">`}<output id="fl-timev"></output></div>
     <div class="fl-below" id="fl-below"></div>
-    <div class="fl-help">${t('fl_help')}</div>`;
+    ${kind === 'free' ? `<div class="fl-help">${t('fl_help')}</div>` : ''}`;
   hud.querySelector<HTMLInputElement>('#fl-time')?.addEventListener('input', (e) => {
     const v = Number((e.target as HTMLInputElement).value);
     set(state.driver === 'manual' ? { manual: v } : { year: v });
   });
-  const tc = $('#fl-touch'); tc.hidden = false;
+  const tc = $('#fl-touch'); tc.hidden = kind !== 'free';
   tc.innerHTML = `<div class="fl-pad">
       <button data-t="pitch:1" aria-label="climb">▲</button><button data-t="roll:-1" aria-label="left">◀</button>
       <button data-t="roll:1" aria-label="right">▶</button><button data-t="pitch:-1" aria-label="descend">▼</button></div>
@@ -842,12 +903,36 @@ async function beginPlane() {
     const off = () => P?.setTouch({ [k]: 0 } as any);
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
   });
-  P.startPlane(grid, site(), onPlane);
+  if (kind === 'free') { P.startPlane(grid, site(), onPlane); renderPlacebar(); return; }
+  if (kind === 'tour') {
+    const path = coastPath();
+    // pause at every danger / underwater marker within 3 km of the route
+    const marks = HOTSPOTS.map((h) => {
+      let best = 1e9, bi = 0;
+      path.forEach(([x, y], i) => { const d = Math.hypot((x - h.lon) * 94000, (y - h.lat) * 110540); if (d < best) { best = d; bi = i; } });
+      return { h, i: bi, d: best };
+    }).filter((m) => m.d < 3000).sort((a, b) => a.i - b.i);
+    const uniq = marks.filter((m, j) => j === 0 || m.i !== marks[j - 1].i);
+    P.startPlane(grid, site(), onPlane, { vehicle: 'plane', auto: {
+      path, speed: 1100, agl: 320, stops: uniq.map((m) => m.i),
+      onStop: (k) => { openHotspotById(uniq[k].h.id); updAutoBtn(); autoTimer = window.setTimeout(() => { closeSheet(); P?.resumeAuto(); updAutoBtn(); }, 4500); },
+      onEnd: () => { toast(t('tour_done')); updAutoBtn(); },
+    } });
+  } else {
+    const r = rail!;
+    P.startPlane(grid, site(), onPlane, { vehicle: 'train', auto: {
+      path: r.path, speed: 650, stops: r.stations.map((s) => s.i),
+      onStop: (k) => { stationCard(k); updAutoBtn(); autoTimer = window.setTimeout(() => { P?.resumeAuto(); updAutoBtn(); }, 7000); },
+      onEnd: () => { toast(t('tr_done')); updAutoBtn(); },
+    } });
+    stationCard(0);
+  }
   renderPlacebar();
 }
 function endPlane() {
   P?.stopPlane();
-  document.body.classList.remove('flying');
+  clearTimeout(autoTimer); closeSheet(); tourKind = 'free';
+  document.body.classList.remove('flying', 'auto-tour');
   $('#flight').hidden = true; $('#fl-touch').hidden = true;
   renderPlacebar();
 }
@@ -873,6 +958,8 @@ function onPlane(s: FlightState, info: { crashed: boolean }) {
     below = reach < L ? `<span class="fl-wet">${t('fl_wet', { d: meters(Math.max(0.1, L - c.ground), 1).replace('+', '') })}</span>`
       : `<span class="fl-dry">${t('fl_dry', { d: meters(Math.max(0, c.ground - L), 1).replace('+', '') })}</span>`;
   }
+  const pos = document.getElementById('rs-pos'); const as = P?.autoState();
+  if (pos && as) pos.style.left = `${(as.s / as.len) * 100}%`;
   const ft = document.getElementById('fl-time') as HTMLInputElement | null;
   if (ft && document.activeElement !== ft) ft.value = String(state.driver === 'manual' ? state.manual : state.year);
   const fv = document.getElementById('fl-timev'); if (fv) fv.textContent = state.driver === 'manual' ? meters(state.manual, 1) : state.longTerm ? '' : String(state.year);
