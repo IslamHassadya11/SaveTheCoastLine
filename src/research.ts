@@ -7,6 +7,7 @@ import { state, level } from './state';
 import { fmt, meters } from './i18n';
 import { slrScenario, commitment2000y, type ScenarioId } from './science';
 import type { FloodGrid } from './flood';
+import { visible } from './layerstate';
 
 type Link = { t: string; u: string };
 const he = () => state.lang === 'he';
@@ -111,9 +112,11 @@ function firstYear(id: ScenarioId, fill: number) {
   return he() ? 'לא עד 2150' : 'not by 2150';
 }
 
-export function verdictHtml(v: Verdict, title?: string, extra = '') {
+export function verdictHtml(v: Verdict, title?: string, extra = '', mode: 'build' | 'risk' = 'build') {
   const H = he();
-  const label = { red: H ? '⛔ לא מומלץ' : '⛔ Do not build here', amber: H ? '⚠ זהירות' : '⚠ Caution', green: H ? '✅ מתאים יותר' : '✅ Better choice' }[v.grade];
+  const label = mode === 'risk'
+    ? { red: H ? '🔴 סיכון גבוה מהים' : '🔴 High sea risk', amber: H ? '🟠 סיכון מסוים' : '🟠 Some sea risk', green: H ? '🟢 סיכון נמוך' : '🟢 Low sea risk' }[v.grade]
+    : { red: H ? '⛔ לא מומלץ' : '⛔ Do not build here', amber: H ? '⚠ זהירות' : '⚠ Caution', green: H ? '✅ מתאים יותר' : '✅ Better choice' }[v.grade];
   const why = !v.inGrid && v.dist < 1000
     ? (H ? 'על קרקע גבוהה, אבל קרוב לחוף: מצוקי הכורכר נסוגים כשהים עולה.' : 'On high ground, but close to the shore: the sandstone cliffs retreat as the sea rises.')
     : !v.inGrid
@@ -152,7 +155,7 @@ export function initDataCentres(g: FloodGrid, coastline: GeoJSON.FeatureCollecti
     dcMarkers.push({ d, el });
   }
   relabelDataCentres();
-  setDataCentresVisible(state.datacentres);
+  setDataCentresVisible(visible.dc);
   map.on('click', (e) => {
     if (!checking) return;
     checking = false; document.body.classList.remove('dc-checking');
@@ -172,7 +175,7 @@ function openDC(d: DataCentre) {
 }
 export function startChecking() {
   checking = true; document.body.classList.add('dc-checking');
-  if (!state.datacentres) setDataCentresVisible(true);
+  if (!visible.dc) { visible.dc = true; setDataCentresVisible(true); }
 }
 export function relabelDataCentres() { for (const { d, el } of dcMarkers) el.querySelector('.dc-label')!.textContent = he() ? d.he : d.en; }
 export function setDataCentresVisible(on: boolean) { for (const { el } of dcMarkers) el.style.display = on ? '' : 'none'; if (!on) popup?.remove(); }
