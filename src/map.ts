@@ -16,6 +16,11 @@ const STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const BLD_MAX = 22;               // buildings the sea can reach below this level are drawn by us
 const BLD_COLOR = 'hsl(35,8%,85%)';
 const BLD_WET = '#f87171';        // part of a reached building still above the water
+// buildings must snap to their new height, not glide there (MapLibre animates paint changes by default)
+const NO_ANIM: any = {
+  'fill-extrusion-base-transition': { duration: 0, delay: 0 }, 'fill-extrusion-height-transition': { duration: 0, delay: 0 },
+  'fill-extrusion-color-transition': { duration: 0, delay: 0 }, 'fill-extrusion-opacity-transition': { duration: 0, delay: 0 },
+};
 
 interface View {
   m: maplibregl.Map; target: FloodTarget; ready: boolean;
@@ -48,7 +53,7 @@ function classicFrames() {
 function makeMap(container: HTMLElement, controls: boolean) {
   const m = new maplibregl.Map({
     container, style: STYLE,
-    center: [34.85, 32.35], zoom: 8.4, minZoom: 7, maxZoom: 18.5, maxPitch: 80,
+    center: [34.85, 32.35], zoom: 8.4, minZoom: 7, maxZoom: 19.5, maxPitch: 80,
     maxBounds: [[33.6, 30.9], [36.2, 33.8]],
     attributionControl: controls ? { compact: true } : false,
     // no preserveDrawingBuffer: it costs graphics memory on every frame (snapshots use the render event instead)
@@ -81,7 +86,10 @@ export function createMap(container: HTMLElement, g: FloodGrid, s: Site[], coast
       map.on('idle', () => scanBuildings(main));
       map.on('moveend', () => { scanBuildings(main); paintFlood(main); });
       guardContext(main);
-      map.on('move', () => { if (other) syncCam(map, other.m); });
+      map.on('move', () => {
+        if (other) syncCam(map, other.m);
+        if (classicFlat() !== wasFlat) { paintFlood(main); if (other) paintFlood(other); }
+      });
       resolve();
       if (location.hash.includes('site=')) flyToSite(site, false);
       else map.fitBounds([[34.45, 31.6], [35.2, 33.1]], { duration: 0 });
@@ -134,14 +142,14 @@ function setupLayers(v: View) {
   m.addSource('fbld', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   m.addLayer({
     id: 'fbld-water', type: 'fill-extrusion', source: 'fbld', minzoom: 14, filter: ['<', ['get', 'f'], -99],
-    paint: { 'fill-extrusion-base': 0, 'fill-extrusion-height': 0, 'fill-extrusion-color': WATER.map.shallow, 'fill-extrusion-opacity': 0.88 },
+    paint: { 'fill-extrusion-base': 0, 'fill-extrusion-height': 0, 'fill-extrusion-color': WATER.map.shallow, 'fill-extrusion-opacity': 0.88, ...NO_ANIM },
   }, 'boundary_3');
   m.addLayer({
     id: 'fbld-3d', type: 'fill-extrusion', source: 'fbld', minzoom: 14,
     paint: {
       'fill-extrusion-base': ['get', 'b'],
       'fill-extrusion-height': ['max', ['+', ['get', 'b'], 2.5], ['get', 'h']],
-      'fill-extrusion-color': BLD_COLOR, 'fill-extrusion-opacity': 0.92,
+      'fill-extrusion-color': BLD_COLOR, 'fill-extrusion-opacity': 0.92, ...NO_ANIM,
     },
   }, 'fbld-water');
   v.ready = true;
@@ -189,11 +197,16 @@ function drawView(v: View, force = false) {
   paintBuildings(v);
 }
 
+/** Classic view uses the original lab's flat animated canvas only on a flat (2D) map; tilted or while
+ *  flying it is drawn on the ground like the other views, so it never smears across the sky. */
+function classicFlat() { return state.style === 'classic' && map.getPitch() < 20 && !document.body.classList.contains('flying'); }
+let wasFlat = false;
 function paintFlood(v: View) {
-  const m = v.m, cl = state.style === 'classic';
-  // classic view: the original lab's animated water is drawn on its own canvas instead of the data layer
-  if (v === main) { if (cl) classic.start(); else classic.stop(); }
-  m.setLayoutProperty('coast-today', 'visibility', cl ? 'none' : 'visible');
+  const m = v.m, flat = classicFlat();
+  if (v === main) { if (flat) classic.start(); else classic.stop(); }
+  wasFlat = flat;
+  m.setLayoutProperty('coast-today', 'visibility', flat ? 'none' : 'visible');
+  const cl = flat;
   const b = m.getBounds();
   const pw = (b.getEast() - b.getWest()) * 0.3, ph = (b.getNorth() - b.getSouth()) * 0.3;
   const W = b.getWest() - pw, E = b.getEast() + pw, S = b.getSouth() - ph, N = b.getNorth() + ph;
@@ -249,7 +262,8 @@ let lastFlightPaint = 0, lastFlightScan = 0;
 export function flightTick() {
   const now = performance.now();
   if (now - lastFlightPaint > 400) { lastFlightPaint = now; paintFlood(main); }
-  if (now - lastFlightScan > 1500) { lastFlightScan = now; scanBuildings(main); }
+  // adding buildings rebuilds the whole building layer, so do it rarely while flying
+  if (now - lastFlightScan > 5000) { lastFlightScan = now; scanBuildings(main); }
 }
 
 /** A PNG of the main map (taken right after a fresh frame, as the drawing buffer is not preserved). */
@@ -464,7 +478,7 @@ function openPopup(v: View, ll: maplibregl.LngLat) {
   const which = v === main ? 'main' : 'other';
   popup = { p: new maplibregl.Popup({ maxWidth: '300px', className: 'rt-popup' }).setLngLat(ll).setHTML(popupFn(ll, which)).addTo(v.m), which };
 }
-function onClick(v: View, e: maplibregl.MapMouseEvent) { openPopup(v, e.lngLat); }
+function onClick(v: View, e: maplibregl.MapMouseEvent) { if (document.body.classList.contains('flying') || document.body.classList.contains('dc-checking')) return; openPopup(v, e.lngLat); }
 export function showPointInfo(lngLat: [number, number]) { openPopup(main, new maplibregl.LngLat(lngLat[0], lngLat[1])); }
 export function refreshPopup() {
   if (popup && popup.p.isOpen() && popupFn) popup.p.setHTML(popupFn(popup.p.getLngLat(), popup.which));

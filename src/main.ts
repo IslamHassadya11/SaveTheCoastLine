@@ -33,6 +33,7 @@ async function boot() {
   if (import.meta.env.DEV) (window as any).__rt = { grid, get map() { return map; } };
   await createMap(document.getElementById('map')!, grid, d.sites, d.coastline);
   (await import('./hotspots')).initHotspots(grid);
+  (await import('./research')).initDataCentres(grid, d.coastline);
   initUI(d.sites, d.climate, grid, { onPhoto: () => openPhoto(grid, d.sites), onLeavePhoto: leavePhoto });
   const pad = () => {
     const dock = document.getElementById('dock')!.getBoundingClientRect();

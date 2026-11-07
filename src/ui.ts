@@ -17,6 +17,7 @@ import type { FlightState } from './plane';
 let P: typeof import('./plane') | null = null;
 const flying = () => !!P && P.flying();
 import { relabelHotspots, refreshHotspotPopup, setHotspotsVisible, REPORTS } from './hotspots';
+import { SDGS, RESEARCH, dcSummary, startChecking, setDataCentresVisible, relabelDataCentres } from './research';
 
 let sites: Site[]; let climate: Climate; let grid: FloodGrid;
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
@@ -46,7 +47,7 @@ let floodQueued = false;
 function onChange(s: State, ch: Set<keyof State>) {
   if (ch.has('lang')) {
     try { localStorage.setItem('rt-lang', s.lang); } catch { /* ignore */ }
-    renderAll(); M.applyLanguage(); relabelHotspots(); return;
+    renderAll(); M.applyLanguage(); relabelHotspots(); relabelDataCentres(); return;
   }
   if (ch.has('driver') || ch.has('longTerm') || ch.has('scenario') || ch.has('q') || ch.has('surge') || ch.has('compare') || ch.has('style')) renderDock();
   if (ch.has('compare')) { M.setCompare(state.compare, $('#map2')); $('#swipe').hidden = !state.compare; }
@@ -181,7 +182,7 @@ function optSummary() {
 }
 
 function renderRail() {
-  const items: [Panel, string, Key][] = [['place', 'place', 'tab_place'], ['emissions', 'factory', 'tab_emissions'], ['act', 'leaf', 'tab_act'], ['data', 'chart', 'tab_data']];
+  const items: [Panel, string, Key][] = [['place', 'place', 'tab_place'], ['emissions', 'factory', 'tab_emissions'], ['act', 'leaf', 'tab_act'], ['data', 'chart', 'tab_data'], ['research', 'book', 'tab_research']];
   $('#rail').innerHTML = items.map(([p, ic, k]) => `<button data-panel="${p}" class="${state.panel === p ? 'on' : ''}">${icon(ic, 20)}<span>${t(k)}</span></button>`).join('');
 }
 
@@ -279,7 +280,7 @@ function renderDrawer() {
     return;
   }
   dr.hidden = false;
-  const tabs: [Panel, Key][] = [['place', 'tab_place'], ['emissions', 'tab_emissions'], ['act', 'tab_act'], ['data', 'tab_data']];
+  const tabs: [Panel, Key][] = [['place', 'tab_place'], ['emissions', 'tab_emissions'], ['act', 'tab_act'], ['data', 'tab_data'], ['research', 'tab_research']];
   dr.innerHTML = `
     <div class="dr-tabs">${tabs.map(([p, k]) => `<button data-panel="${p}" class="${state.panel === p ? 'on' : ''}">${t(k)}</button>`).join('')}
       <button class="dr-close" data-panel="" aria-label="${t('close')}">${icon('close')}</button></div>
@@ -294,6 +295,7 @@ function refreshDrawer(full = false) {
   else if (p === 'emissions') renderEmissions(body, full);
   else if (p === 'act') { if (full || !body.querySelector('.act')) renderAct(body); else updateAct(); }
   else if (p === 'data') renderData(body);
+  else if (p === 'research') renderResearch(body);
 }
 
 // ----- place panel -----
@@ -604,6 +606,7 @@ function openLayers() {
     <div class="seg small"><button data-base="map" class="${state.basemap === 'map' ? 'on' : ''}">${t('base_map')}</button><button data-base="sat" class="${state.basemap === 'sat' ? 'on' : ''}">${t('base_sat')}</button></div>
     <label class="toggle"><input type="checkbox" id="bld" ${state.buildings ? 'checked' : ''}><span class="sw"></span>${t('show_buildings')}</label>
     <label class="toggle"><input type="checkbox" id="hsv" ${state.hotspots ? 'checked' : ''}><span class="sw"></span>${t('show_hotspots')}</label>
+    <label class="toggle"><input type="checkbox" id="dcv" ${state.datacentres ? 'checked' : ''}><span class="sw"></span>${t('show_dc')}</label>
     <div class="btnrow"><button class="btn" data-act="share">${icon('link', 16)} ${t('share')}</button><button class="btn" data-act="shot">${icon('camera', 16)} ${t('shot')}</button></div>`;
 }
 
@@ -716,6 +719,8 @@ function bindGlobal() {
         if (flying()) endPlane(); else beginPlane();
         break;
       case 'plane-exit': endPlane(); break;
+      case 'dc-check': startChecking(); set({ panel: null }); toast(t('dc_click')); break;
+      case 'sdg-open': if (el.dataset.p) set({ panel: el.dataset.p as Panel }); break;
       case 'plane-cam': P?.toggleCamera(); break;
       case 'drone':
         if (flightMode() === 'drone') stopFlight();
@@ -747,6 +752,7 @@ function bindGlobal() {
     else if (el.id === 'manual') set({ manual: Number(el.value) });
     else if (el.id === 'bld') set({ buildings: el.checked });
     else if (el.id === 'hsv') { set({ hotspots: el.checked }); setHotspotsVisible(el.checked); }
+    else if (el.id === 'dcv') { set({ datacentres: el.checked }); setDataCentresVisible(el.checked); }
     else if (el.dataset.a) { (act as any)[el.dataset.a] = Number(el.value); updateAct(); }
     else if (el.id === 'a-people') { act.people = Math.max(1, Number(el.value) || 1); act.who = ''; updateAct(); }
     else if (el.id === 'a-years') { act.years = Math.max(1, Number(el.value) || 1); updateAct(); }
@@ -851,4 +857,28 @@ function onPlane(s: FlightState, info: { crashed: boolean }) {
   if (ft && document.activeElement !== ft) ft.value = String(state.driver === 'manual' ? state.manual : state.year);
   const fv = document.getElementById('fl-timev'); if (fv) fv.textContent = state.driver === 'manual' ? meters(state.manual, 1) : state.longTerm ? '' : String(state.year);
   $('#fl-below').innerHTML = `<span class="fl-near">${icon('pin', 14)} ${esc(siteName(near))}</span> · ${below} · <span class="muted">${t('sea_level')} ${meters(L)}${state.driver !== 'manual' && !state.longTerm ? ` · ${state.year}` : ''}</span>`;
+}
+
+
+// ---------------- research & SDGs ----------------
+function renderResearch(body: HTMLElement) {
+  const H = state.lang === 'he';
+  const dcs = dcSummary();
+  const badge = (g: string) => `<i class="dc-dot ${g}"></i>`;
+  body.innerHTML = `
+    <h2>${t('tab_research')}</h2><p class="muted">${t('rs_intro')}</p>
+    <h3>${t('rs_sdgs')}</h3>
+    <div class="sdgs">${SDGS.map((g) => `<div class="sdg">
+      <a class="sdg-n" style="background:${g.color}" href="${g.link}" target="_blank" rel="noopener" title="UN SDG ${g.n}">${g.n}</a>
+      <div><b>${H ? g.he : g.en}</b><p>${H ? g.dhe : g.den}</p>
+      <div class="sdg-links"><a href="${g.link}" target="_blank" rel="noopener">${t('rs_un')} ↗</a>${g.panel ? `<button class="linkbtn" data-act="sdg-open" data-p="${g.panel}">${t('rs_see')} →</button>` : ''}</div></div></div>`).join('')}</div>
+    <h3>${t('rs_dc')}</h3>
+    <p class="muted small">${t('rs_dc_intro')}</p>
+    <button class="btn primary" data-act="dc-check">${t('dc_check')}</button>
+    <table class="tbl dc-tbl"><thead><tr><th>${t('rs_site')}</th><th>${t('rs_status')}</th><th>${t('rs_risk')}</th></tr></thead><tbody>
+      ${dcs.map(({ d, v }) => `<tr><td>${esc(H ? d.he : d.en)}<br><span class="muted">${esc(d.who)}</span></td><td>${d.status === 'planned' ? t('rs_planned') : t('rs_existing')}</td>
+        <td>${badge(v.grade)}${t(('rs_' + v.grade) as Key)}</td></tr>`).join('')}
+    </tbody></table>
+    <p class="muted small">${t('rs_dc_note')}</p>
+    ${RESEARCH.map((g) => `<h3>${H ? g.group[1] : g.group[0]}</h3><ul class="sources research">${g.items.map((it) => `<li><a href="${it.u}" target="_blank" rel="noopener">${esc(it.t)} ↗</a><br><span class="muted">${H ? it.note[1] : it.note[0]}</span></li>`).join('')}</ul>`).join('')}`;
 }
