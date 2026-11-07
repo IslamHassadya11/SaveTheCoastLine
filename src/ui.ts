@@ -12,7 +12,10 @@ import type { Site, Climate } from './data';
 import type { FloodGrid } from './flood';
 import * as M from './map';
 import { startTour, startOrbit, startDrone, stopFlight, onFlightChange, flightMode } from './fly';
-import { startPlane, stopPlane, flying, toggleCamera, setTouch, type FlightState } from './plane';
+import type { FlightState } from './plane';
+// three.js + the plane load only when someone flies
+let P: typeof import('./plane') | null = null;
+const flying = () => !!P && P.flying();
 import { relabelHotspots, refreshHotspotPopup, setHotspotsVisible, REPORTS } from './hotspots';
 
 let sites: Site[]; let climate: Climate; let grid: FloodGrid;
@@ -713,7 +716,7 @@ function bindGlobal() {
         if (flying()) endPlane(); else beginPlane();
         break;
       case 'plane-exit': endPlane(); break;
-      case 'plane-cam': toggleCamera(); break;
+      case 'plane-cam': P?.toggleCamera(); break;
       case 'drone':
         if (flightMode() === 'drone') stopFlight();
         else { if (state.view === '2d') { set({ view: '3d' }); M.enter3D(false); } startDrone(); }
@@ -777,8 +780,9 @@ function nudgeTime(dir: number) {
   if (state.driver === 'manual') set({ manual: Math.max(0, Math.min(20, Math.round((state.manual + dir * 0.5) * 10) / 10)) });
   else if (!state.longTerm) set({ year: Math.max(2020, Math.min(2150, state.year + dir * 5)) });
 }
-function beginPlane() {
+async function beginPlane() {
   stopFlight();
+  P ??= await import('./plane');
   if (state.view === 'photo') return;
   if (state.view === '2d') { M.enter3D(false); set({ view: '3d' }); }
   set({ panel: null });
@@ -808,15 +812,15 @@ function beginPlane() {
     <div class="fl-thrpad"><button data-t="thr:1" aria-label="faster">+</button><button data-t="thr:-1" aria-label="slower">−</button></div>`;
   tc.querySelectorAll<HTMLButtonElement>('button[data-t]').forEach((b) => {
     const [k, v] = b.dataset.t!.split(':');
-    const on = (e: Event) => { e.preventDefault(); setTouch({ [k]: Number(v) } as any); };
-    const off = () => setTouch({ [k]: 0 } as any);
+    const on = (e: Event) => { e.preventDefault(); P?.setTouch({ [k]: Number(v) } as any); };
+    const off = () => P?.setTouch({ [k]: 0 } as any);
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
   });
-  startPlane(grid, site(), onPlane);
+  P.startPlane(grid, site(), onPlane);
   renderPlacebar();
 }
 function endPlane() {
-  stopPlane();
+  P?.stopPlane();
   document.body.classList.remove('flying');
   $('#flight').hidden = true; $('#fl-touch').hidden = true;
   renderPlacebar();
