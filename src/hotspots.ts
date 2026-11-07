@@ -7,6 +7,7 @@ import { reached } from './stats';
 import { fmt, meters } from './i18n';
 import type { FloodGrid } from './flood';
 import { visible } from './layerstate';
+import { EVIDENCE, evidenceHtml } from './evidence';
 
 type Link = { t: string; u: string };
 export interface Hotspot {
@@ -127,6 +128,7 @@ function card(h: Hotspot) {
     <h3>${esc(he ? h.he : h.en)}</h3>
     <p>${esc(he ? h.dhe : h.den)}</p>
     ${live}
+    ${evidenceHtml(EVIDENCE[h.id] ?? [], he, h.kind === 'risk')}
     <div class="hs-links"><b>${he ? 'לקריאה נוספת' : 'Read more'}</b>
       ${h.links.map((l) => `<a href="${l.u}" target="_blank" rel="noopener">${esc(l.t)} ↗</a>`).join('')}
       <details><summary>${he ? 'דוחות אקלים על הים התיכון' : 'Climate reports on the Mediterranean'}</summary>
@@ -157,7 +159,7 @@ function open(h: Hotspot) {
   current = h; custom = null;
   sheet.hidden = false;
   document.body.classList.add('hs-open');
-  render();
+  render(); sheet.scrollTop = 0;
   for (const { h: x, el } of markers) el.classList.toggle('on', x === h);
 }
 /** Show any card in the side panel (used by the other map layers). */
@@ -165,7 +167,7 @@ export function showSheet(html: () => string) {
   current = null; custom = html;
   sheet.hidden = false; document.body.classList.add('hs-open');
   for (const { el } of markers) el.classList.remove('on');
-  render();
+  render(); sheet.scrollTop = 0;
 }
 function close() {
   current = null; custom = null; sheet.hidden = true;

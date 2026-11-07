@@ -579,3 +579,17 @@ body.mk-far .poi .poi-label { display: none; }
 body.mk-far .poi { padding: 3px; }
 body.flying .poi { display: none !important; }
 @media (max-width: 760px) { #layerbox { width: auto; } }
+
+/* evidence on cards */
+.ev { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.ev > b { font-size: 13.5px; }
+.ev ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.ev li { font-size: 13px; line-height: 1.45; color: var(--text-2); }
+.ev li a { display: block; margin-top: 2px; font-size: 12px; color: var(--accent); text-decoration: none; }
+.ev li a:hover { text-decoration: underline; }
+.ev-k { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; margin-inline-end: 6px; vertical-align: 1px; }
+.ev-study { background: rgba(56,189,248,.18); color: #7dd3fc; }
+.ev-official { background: rgba(52,211,153,.18); color: #6ee7b7; }
+.ev-news { background: rgba(251,191,36,.16); color: #fcd34d; }
+.dc-v .ev { margin-top: 6px; }
+.rt-popup .maplibregl-popup-content { max-height: 60vh; overflow-y: auto; }

@@ -616,7 +616,7 @@ function openLayers() {
     <div class="ly-sec"><h4>${t('ly_sea')}</h4>
       ${row('risk', '!', '#e11d48', t('ly_risk'), nRisk)}${row('sea', '⚓', '#0e7490', t('ly_underwater'), nSea)}</div>
     <div class="ly-sec"><h4>${t('ly_infra')}</h4>
-      ${row('dc', '▦', '#10b981', t('show_dc'), 8)}${CATS.filter((c) => c.id !== 'emitters' && c.id !== 'nature').map((c) => row(c.id, c.icon, c.color, H ? c.he : c.en, poiCount(c.id))).join('')}</div>
+      ${row('dc', '▦', '#10b981', t('show_dc'), 9)}${CATS.filter((c) => c.id !== 'emitters' && c.id !== 'nature').map((c) => row(c.id, c.icon, c.color, H ? c.he : c.en, poiCount(c.id))).join('')}</div>
     <div class="ly-sec"><h4>${t('ly_pollution')}</h4>${row('emitters', '☁', '#7c3aed', H ? CATS[0].he : CATS[0].en, poiCount('emitters'))}</div>
     <div class="ly-sec"><h4>${t('ly_nature')}</h4>${row('nature', '🌲', '#16a34a', H ? CATS[4].he : CATS[4].en, poiCount('nature'))}</div>
     <div class="ly-foot"><button class="linkbtn" data-act="ly-all">${t('ly_all')}</button><button class="linkbtn" data-act="ly-none">${t('ly_none')}</button></div>
