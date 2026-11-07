@@ -6,6 +6,7 @@ import { state, level } from './state';
 import { reached } from './stats';
 import { fmt, meters } from './i18n';
 import type { FloodGrid } from './flood';
+import { visible } from './layerstate';
 
 type Link = { t: string; u: string };
 export interface Hotspot {
@@ -101,6 +102,7 @@ export const HOTSPOTS: Hotspot[] = [
 
 const markers: { h: Hotspot; m: maplibregl.Marker; el: HTMLElement }[] = [];
 let current: Hotspot | null = null;
+let custom: (() => string) | null = null;   // a card from another layer (power stations, forests, ...)
 let sheet: HTMLElement;
 let grid: FloodGrid;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -137,7 +139,7 @@ export function initHotspots(g: FloodGrid) {
   sheet = document.createElement('aside');
   sheet.id = 'hs-sheet'; sheet.hidden = true;
   document.body.appendChild(sheet);
-  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && current) close(); });
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (current || custom)) close(); });
   for (const h of HOTSPOTS) {
     const el = document.createElement('button');
     el.className = `hs hs-${h.kind}`;
@@ -148,32 +150,40 @@ export function initHotspots(g: FloodGrid) {
     markers.push({ h, m, el });
   }
   relabelHotspots();
-  setHotspotsVisible(state.hotspots);
+  applyHotspots();
 }
 // The card opens in a fixed side panel, so it never hides behind the top bar or the dock.
 function open(h: Hotspot) {
-  current = h;
+  current = h; custom = null;
   sheet.hidden = false;
   document.body.classList.add('hs-open');
   render();
   for (const { h: x, el } of markers) el.classList.toggle('on', x === h);
 }
+/** Show any card in the side panel (used by the other map layers). */
+export function showSheet(html: () => string) {
+  current = null; custom = html;
+  sheet.hidden = false; document.body.classList.add('hs-open');
+  for (const { el } of markers) el.classList.remove('on');
+  render();
+}
 function close() {
-  current = null; sheet.hidden = true;
+  current = null; custom = null; sheet.hidden = true;
   document.body.classList.remove('hs-open');
   for (const { el } of markers) el.classList.remove('on');
 }
 function render() {
-  if (!current) return;
-  sheet.innerHTML = `<button class="dr-close hs-x" aria-label="close">✕</button>${card(current)}`;
+  if (!current && !custom) return;
+  sheet.innerHTML = `<button class="dr-close hs-x" aria-label="close">✕</button>${current ? card(current) : custom!()}`;
   sheet.querySelector('.hs-x')!.addEventListener('click', close);
 }
-export function refreshHotspotPopup() { if (current) render(); }
+export function refreshHotspotPopup() { if (current || custom) render(); }
 export function relabelHotspots() {
   for (const { h, el } of markers) el.querySelector('.hs-label')!.textContent = state.lang === 'he' ? h.he : h.en;
   refreshHotspotPopup();
 }
-export function setHotspotsVisible(on: boolean) {
-  for (const { el } of markers) el.style.display = on ? '' : 'none';
-  if (!on) close();
+/** Places at risk ('risk') and underwater heritage ('sea') switch on and off separately. */
+export function applyHotspots() {
+  for (const { h, el } of markers) el.style.display = visible[h.kind] ? '' : 'none';
+  if (current && !visible[current.kind]) close();
 }

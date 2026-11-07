@@ -34,6 +34,8 @@ async function boot() {
   await createMap(document.getElementById('map')!, grid, d.sites, d.coastline);
   (await import('./hotspots')).initHotspots(grid);
   (await import('./research')).initDataCentres(grid, d.coastline);
+  (await import('./poi')).initPois();
+  M.applyMapLayers();
   initUI(d.sites, d.climate, grid, { onPhoto: () => openPhoto(grid, d.sites), onLeavePhoto: leavePhoto });
   const pad = () => {
     const dock = document.getElementById('dock')!.getBoundingClientRect();
