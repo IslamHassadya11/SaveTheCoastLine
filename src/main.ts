@@ -10,6 +10,17 @@ import { initUI, modal, toast, onLevelChange } from './ui';
 import { t } from './i18n';
 import { stopFlight } from './fly';
 
+// After a new version is published, a page that was open (or cached) still asks for the old,
+// now-deleted file names. Reload once to pick up the new version instead of failing.
+window.addEventListener('vite:preloadError', (e) => {
+  try {
+    if (sessionStorage.getItem('rt-reloaded')) return;
+    sessionStorage.setItem('rt-reloaded', '1');
+  } catch { /* storage blocked: still reload once per page load */ }
+  e.preventDefault();
+  location.reload();
+});
+
 async function boot() {
   readHash();
   document.documentElement.dir = state.lang === 'he' ? 'rtl' : 'ltr';
@@ -36,6 +47,8 @@ async function boot() {
   new MutationObserver(pad).observe(document.getElementById('drawer')!, { attributes: true, attributeFilter: ['hidden'] });
   pad();
   loader.classList.add('done');
+  // started fine: allow one automatic reload again for the next stale-file problem
+  setTimeout(() => { try { sessionStorage.removeItem('rt-reloaded'); } catch { /* ignore */ } }, 10000);
   setTimeout(() => loader.remove(), 700);
 
   // photoreal water follows the sea level, debounced (it re-encodes images)
