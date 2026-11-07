@@ -244,6 +244,14 @@ function guardContext(v: View) {
   });
 }
 
+/** Called every frame while the plane flies: keep the water and buildings under it up to date. */
+let lastFlightPaint = 0, lastFlightScan = 0;
+export function flightTick() {
+  const now = performance.now();
+  if (now - lastFlightPaint > 400) { lastFlightPaint = now; paintFlood(main); }
+  if (now - lastFlightScan > 1500) { lastFlightScan = now; scanBuildings(main); }
+}
+
 /** A PNG of the main map (taken right after a fresh frame, as the drawing buffer is not preserved). */
 export function snapshot(): Promise<string> {
   return new Promise((res) => { map.once('render', () => res(map.getCanvas().toDataURL('image/png'))); map.triggerRepaint(); });

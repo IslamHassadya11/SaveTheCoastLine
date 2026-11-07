@@ -12,6 +12,8 @@ import type { Site, Climate } from './data';
 import type { FloodGrid } from './flood';
 import * as M from './map';
 import { startTour, startOrbit, startDrone, stopFlight, onFlightChange, flightMode } from './fly';
+import { startPlane, stopPlane, flying, toggleCamera, setTouch, type FlightState } from './plane';
+import { relabelHotspots, refreshHotspotPopup, setHotspotsVisible, REPORTS } from './hotspots';
 
 let sites: Site[]; let climate: Climate; let grid: FloodGrid;
 const $ = <T extends HTMLElement = HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
@@ -41,7 +43,7 @@ let floodQueued = false;
 function onChange(s: State, ch: Set<keyof State>) {
   if (ch.has('lang')) {
     try { localStorage.setItem('rt-lang', s.lang); } catch { /* ignore */ }
-    renderAll(); M.applyLanguage(); return;
+    renderAll(); M.applyLanguage(); relabelHotspots(); return;
   }
   if (ch.has('driver') || ch.has('longTerm') || ch.has('scenario') || ch.has('q') || ch.has('surge') || ch.has('compare') || ch.has('style')) renderDock();
   if (ch.has('compare')) { M.setCompare(state.compare, $('#map2')); $('#swipe').hidden = !state.compare; }
@@ -61,7 +63,7 @@ function onChange(s: State, ch: Set<keyof State>) {
   if (ch.has('compare') || ch.has('style') || ch.has('basemap')) renderLegend();
   if (!floodQueued) {
     floodQueued = true;
-    requestAnimationFrame(() => { floodQueued = false; M.updateFlood(); M.refreshPopup(); levelListeners.forEach((f) => f()); });
+    requestAnimationFrame(() => { floodQueued = false; M.updateFlood(); M.refreshPopup(); refreshHotspotPopup(); levelListeners.forEach((f) => f()); });
   }
   updateLive();
 }
@@ -98,6 +100,7 @@ function renderPlacebar() {
     <span class="pb-sep"></span>
     <button class="pb-btn ${fm === 'orbit' ? 'on' : ''}" data-act="orbit">${icon('orbit', 16)}<span>${t('orbit')}</span></button>
     <button class="pb-btn ${fm === 'drone' ? 'on' : ''}" data-act="drone">${icon('drone', 16)}<span>${t('drone')}</span></button>
+    <button class="pb-btn plane-btn ${flying() ? 'on' : ''}" data-act="plane">${icon('plane', 16)}<span>${t('fly_plane')}</span></button>
     ${fm === 'drone' ? `<div class="drone-help">${t('drone_help')}</div>` : ''}`;
   const tb = document.querySelector('[data-act="tour"] span'); if (tb) tb.textContent = fm === 'tour' ? t('tour_stop') : t('tour');
 }
@@ -441,6 +444,7 @@ function renderData(body: HTMLElement) {
     <h3>${t('data_co2')}</h3>
     <div id="cchart"></div>
     <p class="muted small">${t('data_latest', { ppm: fmt(co2.latest.ppm, 1), m: co2.latest.month, y: co2.latest.year })}</p>
+    <h3>${t('reports')}</h3><ul class="sources">${REPORTS.map((r) => `<li><a href="${r.u}" target="_blank" rel="noopener">${esc(r.t)} ↗</a></li>`).join('')}</ul>
     <h3>${t('data_sources')}</h3><ul class="sources">${t('sources_list')}</ul>`;
   const yrs: number[] = []; for (let y = 2020; y <= 2150; y += 5) yrs.push(y);
   const show: ScenarioId[] = ['ssp119', 'ssp245', 'ssp585'];
@@ -596,6 +600,7 @@ function openLayers() {
   box.innerHTML = `
     <div class="seg small"><button data-base="map" class="${state.basemap === 'map' ? 'on' : ''}">${t('base_map')}</button><button data-base="sat" class="${state.basemap === 'sat' ? 'on' : ''}">${t('base_sat')}</button></div>
     <label class="toggle"><input type="checkbox" id="bld" ${state.buildings ? 'checked' : ''}><span class="sw"></span>${t('show_buildings')}</label>
+    <label class="toggle"><input type="checkbox" id="hsv" ${state.hotspots ? 'checked' : ''}><span class="sw"></span>${t('show_hotspots')}</label>
     <div class="btnrow"><button class="btn" data-act="share">${icon('link', 16)} ${t('share')}</button><button class="btn" data-act="shot">${icon('camera', 16)} ${t('shot')}</button></div>`;
 }
 
@@ -704,6 +709,11 @@ function bindGlobal() {
         if (flightMode() === 'orbit') stopFlight();
         else { if (state.view === '2d') { set({ view: '3d' }); M.enter3D(false); } startOrbit(site()); }
         break;
+      case 'plane':
+        if (flying()) endPlane(); else beginPlane();
+        break;
+      case 'plane-exit': endPlane(); break;
+      case 'plane-cam': toggleCamera(); break;
       case 'drone':
         if (flightMode() === 'drone') stopFlight();
         else { if (state.view === '2d') { set({ view: '3d' }); M.enter3D(false); } startDrone(); }
@@ -733,6 +743,7 @@ function bindGlobal() {
     else if (el.id === 'budget' || el.id === 'budget2') set({ budget: Number(el.value), driver: 'budget' });
     else if (el.id === 'manual') set({ manual: Number(el.value) });
     else if (el.id === 'bld') set({ buildings: el.checked });
+    else if (el.id === 'hsv') { set({ hotspots: el.checked }); setHotspotsVisible(el.checked); }
     else if (el.dataset.a) { (act as any)[el.dataset.a] = Number(el.value); updateAct(); }
     else if (el.id === 'a-people') { act.people = Math.max(1, Number(el.value) || 1); act.who = ''; updateAct(); }
     else if (el.id === 'a-years') { act.years = Math.max(1, Number(el.value) || 1); updateAct(); }
@@ -743,6 +754,9 @@ function bindGlobal() {
       if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goStep(stepI + 1); }
       if (e.key === 'ArrowLeft') goStep(stepI - 1);
       if (e.key === 'Escape') present(false);
+    } else if (flying()) {
+      if (e.key === 'Escape') endPlane();
+      if (e.key === ',' || e.key === '.') nudgeTime(e.key === '.' ? 1 : -1);
     } else if (e.key === 'Escape') {
       for (const id of ['#searchbox', '#places', '#layerbox']) $(id).hidden = true;
       if (state.panel) set({ panel: null });
@@ -755,4 +769,82 @@ function bindGlobal() {
       if (!$(box).hidden && !tgt.closest(box) && !tgt.closest(`[data-act="${btn}"]`)) $(box).hidden = true;
     }
   });
+}
+
+
+// ---------------- the University of Haifa plane ----------------
+function nudgeTime(dir: number) {
+  if (state.driver === 'manual') set({ manual: Math.max(0, Math.min(20, Math.round((state.manual + dir * 0.5) * 10) / 10)) });
+  else if (!state.longTerm) set({ year: Math.max(2020, Math.min(2150, state.year + dir * 5)) });
+}
+function beginPlane() {
+  stopFlight();
+  if (state.view === 'photo') return;
+  if (state.view === '2d') { M.enter3D(false); set({ view: '3d' }); }
+  set({ panel: null });
+  document.body.classList.add('flying');
+  const hud = $('#flight');
+  hud.hidden = false;
+  hud.innerHTML = `
+    <div class="fl-top"><b>${icon('plane', 16)} ${t('fl_title')}</b><span class="grow"></span>
+      <button class="btn" data-act="plane-cam">${t('fl_cam')}</button><button class="btn primary" data-act="plane-exit">${t('fl_exit')}</button></div>
+    <div class="fl-stats">
+      <div><span>${t('fl_speed')}</span><b id="fl-v"></b></div><div><span>${t('fl_alt')}</span><b id="fl-alt"></b></div>
+      <div><span>${t('fl_hdg')}</span><b id="fl-hdg"></b></div><div><span>${t('fl_thr')}</span><i class="fl-thr"><i id="fl-thr"></i></i></div></div>
+    <div class="fl-time">${state.driver === 'manual'
+      ? `<span>${t('manual_label')}</span><input type="range" id="fl-time" min="0" max="20" step="0.1" value="${state.manual}">`
+      : state.longTerm ? `<span>${t('in_2000y')}</span>`
+      : `<span>${t('year')}</span><input type="range" id="fl-time" min="2020" max="2150" step="1" value="${state.year}">`}<output id="fl-timev"></output></div>
+    <div class="fl-below" id="fl-below"></div>
+    <div class="fl-help">${t('fl_help')}</div>`;
+  hud.querySelector<HTMLInputElement>('#fl-time')?.addEventListener('input', (e) => {
+    const v = Number((e.target as HTMLInputElement).value);
+    set(state.driver === 'manual' ? { manual: v } : { year: v });
+  });
+  const tc = $('#fl-touch'); tc.hidden = false;
+  tc.innerHTML = `<div class="fl-pad">
+      <button data-t="pitch:1" aria-label="climb">▲</button><button data-t="roll:-1" aria-label="left">◀</button>
+      <button data-t="roll:1" aria-label="right">▶</button><button data-t="pitch:-1" aria-label="descend">▼</button></div>
+    <div class="fl-thrpad"><button data-t="thr:1" aria-label="faster">+</button><button data-t="thr:-1" aria-label="slower">−</button></div>`;
+  tc.querySelectorAll<HTMLButtonElement>('button[data-t]').forEach((b) => {
+    const [k, v] = b.dataset.t!.split(':');
+    const on = (e: Event) => { e.preventDefault(); setTouch({ [k]: Number(v) } as any); };
+    const off = () => setTouch({ [k]: 0 } as any);
+    b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+  });
+  startPlane(grid, site(), onPlane);
+  renderPlacebar();
+}
+function endPlane() {
+  stopPlane();
+  document.body.classList.remove('flying');
+  $('#flight').hidden = true; $('#fl-touch').hidden = true;
+  renderPlacebar();
+}
+let lastHud = 0;
+function onPlane(s: FlightState, info: { crashed: boolean }) {
+  const now = performance.now();
+  if (now - lastHud < 120) return;
+  lastHud = now;
+  const he = state.lang === 'he';
+  $('#fl-v').textContent = `${fmt(s.v * 3.6)} ${he ? 'קמ״ש' : 'km/h'}`;
+  $('#fl-alt').textContent = `${fmt(Math.max(0, s.alt - s.floor))} ${he ? 'מ׳' : 'm'}`;
+  $('#fl-hdg').textContent = `${fmt(s.hdg)}°`;
+  $<HTMLElement>('#fl-thr').style.width = `${Math.round(s.throttle * 100)}%`;
+  // what is below the plane right now
+  const near = sites.reduce((a, b) => (Math.hypot(b.lat - s.lat, (b.lon - s.lon) * 0.84) < Math.hypot(a.lat - s.lat, (a.lon - s.lon) * 0.84) ? b : a));
+  const c = grid.sample(s.lon, s.lat), L = level();
+  let below: string;
+  if (info.crashed) below = `<span class="fl-crash">${t('fl_crash')}</span>`;
+  else if (!c) below = t('fl_high');
+  else if (c.sea) below = t('fl_sea');
+  else {
+    const reach = state.style === 'real' ? c.fill : c.fillIllus;
+    below = reach < L ? `<span class="fl-wet">${t('fl_wet', { d: meters(Math.max(0.1, L - c.ground), 1).replace('+', '') })}</span>`
+      : `<span class="fl-dry">${t('fl_dry', { d: meters(Math.max(0, c.ground - L), 1).replace('+', '') })}</span>`;
+  }
+  const ft = document.getElementById('fl-time') as HTMLInputElement | null;
+  if (ft && document.activeElement !== ft) ft.value = String(state.driver === 'manual' ? state.manual : state.year);
+  const fv = document.getElementById('fl-timev'); if (fv) fv.textContent = state.driver === 'manual' ? meters(state.manual, 1) : state.longTerm ? '' : String(state.year);
+  $('#fl-below').innerHTML = `<span class="fl-near">${icon('pin', 14)} ${esc(siteName(near))}</span> · ${below} · <span class="muted">${t('sea_level')} ${meters(L)}${state.driver !== 'manual' && !state.longTerm ? ` · ${state.year}` : ''}</span>`;
 }

@@ -21,6 +21,7 @@ async function boot() {
   const grid = new FloodGrid(d.index, d.grid, d.retreat);
   if (import.meta.env.DEV) (window as any).__rt = { grid, get map() { return map; } };
   await createMap(document.getElementById('map')!, grid, d.sites, d.coastline);
+  (await import('./hotspots')).initHotspots(grid);
   initUI(d.sites, d.climate, grid, { onPhoto: () => openPhoto(grid, d.sites), onLeavePhoto: leavePhoto });
   const pad = () => {
     const dock = document.getElementById('dock')!.getBoundingClientRect();
