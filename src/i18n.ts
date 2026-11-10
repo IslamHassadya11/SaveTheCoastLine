@@ -3,7 +3,7 @@ import { state } from './state';
 const EN = {
   title: 'Save The Coast Line',
   subtitle: "Sea level rise on Israel's coast",
-  view_2d: 'Map', view_3d: '3D city', view_photo: 'Photoreal',
+  view_2d: '2D', view_3d: '3D city', view_photo: 'Photoreal',
   search: 'Search a place', search_ph: 'Is my place safe? Type an address…', search_none: 'No match on the coast',
   tour: 'Fly the coast', tour_stop: 'Stop flight', orbit: 'Fly around here', drone: 'Drone mode',
   drone_help: 'W/S forward·back · A/D sideways · Q/E turn · R/F tilt · Shift = faster · Esc = exit',
@@ -91,7 +91,7 @@ const EN = {
   s8_t: 'What we can still change', s8_b: 'Every 0.1 °C avoided means tens of centimetres less sea in the long run. Compare net zero with fossil fuels, then open the calculator and see what our seminar could do.',
   loading: 'Loading the coast…', toast_photo_back: 'Back to the 3D city view',
   legend_depth: 'Water depth', legend_saved: 'Saved if we cut emissions',
-  layers: 'Layers', base_map: 'Map', base_sat: 'Satellite', show_buildings: '3D buildings',
+  layers: 'Layers', base_map: 'Plain map', base_sat: 'Satellite', show_buildings: '3D buildings',
   share: 'Copy link', copied: 'Link copied', shot: 'Save image',
   more_opts: 'Storm, horizon & compare',
   vs: 'vs', style_real: 'Real elevation', style_illus: 'Illustration', style_classic: 'Classic',
@@ -128,7 +128,7 @@ type Key = keyof typeof EN;
 
 const HE: Partial<Record<Key, string>> = {
   title: 'להציל את קו החוף', subtitle: 'עליית מפלס הים בחופי ישראל',
-  view_2d: 'מפה', view_3d: 'עיר בתלת־ממד', view_photo: 'פוטו־ריאליסטי',
+  view_2d: 'דו־ממד', view_3d: 'עיר בתלת־ממד', view_photo: 'פוטו־ריאליסטי',
   search: 'חיפוש מקום', search_ph: 'האם הבית שלי בטוח? הקלידו כתובת…', search_none: 'לא נמצא מקום על החוף',
   tour: 'טיסה לאורך החוף', tour_stop: 'עצירת הטיסה', orbit: 'טיסה סביב המקום', drone: 'מצב רחפן',
   drone_help: 'W/S קדימה·אחורה · A/D הצידה · Q/E סיבוב · R/F הטיה · Shift מהר · Esc יציאה',
@@ -198,7 +198,7 @@ const HE: Partial<Record<Key, string>> = {
   s8_t: 'מה עוד אפשר לשנות', s8_b: 'כל 0.1° שנמנע פירושו עשרות סנטימטרים פחות ים בטווח הארוך. השוו אפס נטו מול דלק מאובנים, ואז פתחו את המחשבון וראו מה הסמינר שלנו יכול לעשות.',
   loading: 'טוען את החוף…', toast_photo_back: 'חזרה לתצוגת העיר בתלת־ממד',
   legend_depth: 'עומק המים', legend_saved: 'ניצל אם נפחית פליטות',
-  layers: 'שכבות', base_map: 'מפה', base_sat: 'לוויין', show_buildings: 'מבנים בתלת־ממד',
+  layers: 'שכבות', base_map: 'מפה רגילה', base_sat: 'לוויין', show_buildings: 'מבנים בתלת־ממד',
   share: 'העתקת קישור', copied: 'הקישור הועתק', shot: 'שמירת תמונה',
   more_opts: 'סערה, טווח זמן והשוואה',
   vs: 'מול', style_real: 'גובה אמיתי', style_illus: 'המחשה', style_classic: 'קלאסי',

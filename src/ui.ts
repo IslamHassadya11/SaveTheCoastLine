@@ -14,6 +14,7 @@ import * as M from './map';
 import { startOrbit, startDrone, stopFlight, onFlightChange, flightMode } from './fly';
 import type { FlightState } from './plane';
 // three.js + the plane load only when someone flies
+let baseBeforeClassic: State['basemap'] = 'map';
 let P: typeof import('./plane') | null = null;
 const flying = () => !!P && P.flying();
 import { relabelHotspots, refreshHotspotPopup, applyHotspots, REPORTS, HOTSPOTS, openHotspotById, closeSheet } from './hotspots';
@@ -700,7 +701,10 @@ function bindGlobal() {
     if (d.panel !== undefined) { const p = (d.panel || null) as Panel; set({ panel: state.panel === p ? null : p }); return; }
     if (d.style) {
       const entering = d.style === 'classic' && state.style !== 'classic';
-      set({ style: d.style as State['style'], ...(entering ? { basemap: 'sat' as const } : {}) });
+      const leaving = d.style !== 'classic' && state.style === 'classic';
+      // Classic uses satellite; going back restores the map the user had before
+      if (entering) baseBeforeClassic = state.basemap;
+      set({ style: d.style as State['style'], ...(entering ? { basemap: 'sat' as const } : leaving ? { basemap: baseBeforeClassic } : {}) });
       // the classic coastline is drawn at regional scale (like the original lab), so step back a little
       if (entering && M.map.getZoom() > 12.6) setTimeout(() => M.map.easeTo({ zoom: 12.4, duration: 1200 }), 60);
       return;
